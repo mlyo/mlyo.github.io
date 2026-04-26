@@ -84,7 +84,7 @@
       <section class="panel" id="panel-tools">
         <section class="card wide">
           <div class="card-title"><h2>ProxyIP 检测</h2><div class="actions"><button id="btnResolveTargets">解析候选</button><button id="btnCheckTargets" class="primary">解析并检测</button><button id="btnStopCheck" class="danger" disabled>停止检测</button></div></div>
-          <p class="hint">支持 IPv4、IPv6、域名、域名:端口、多行批量。检测工具采用浏览器前端并发直连外部检测接口，速度接近公共检测站；后端自动维护仍使用稳态低并发。</p>
+          <p class="hint">支持 IPv4、IPv6、域名、域名:端口、多行批量。检测工具采用外部接口逗号批量检测，浏览器并发分批执行，速度接近公共检测站；后端维护也使用逗号批量检测并配合 DNS 批量更新。</p>
           <textarea id="checkTargets" class="small" spellcheck="false" placeholder="38.146.27.51:443&#10;example.com&#10;[2606:4700::1]:443"></textarea>
           <div class="actions"><label><input type="checkbox" id="useBackup" /> 只使用备用接口</label><label><input type="checkbox" id="skipResolve" /> 不解析域名，直接检测</label><label class="inline-label">并发 <input id="frontendConcurrency" class="mini-input" value="20" inputmode="numeric" /></label><button id="btnCopyGood">复制可用项</button><button id="btnAddGoodToPool">可用项加入当前池</button><button id="btnCopyFiltered">复制筛选结果</button><button id="btnAddFilteredToPool">筛选可用项加入池</button></div>
           <div id="checkProgressBox" class="check-progress-box hidden">
