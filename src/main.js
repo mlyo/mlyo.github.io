@@ -30,26 +30,55 @@ function getFrontendConcurrency() {
 }
 
 function normalizeExternalCheckResult(raw, candidate, source, responseTime) {
-  const probe = raw?.probe_results || {};
-  const ipv4 = probe.ipv4 || {};
-  const ipv6 = probe.ipv6 || {};
-  const light = ipv4.ip ? ipv4 : (ipv6.ip ? ipv6 : {});
+  if (!raw || typeof raw !== 'object') {
+    return {
+      candidate: String(candidate || ''),
+      success: false,
+      source,
+      proxyIP: '',
+      portRemote: parsePortFromTarget(candidate),
+      responseTime: Number(responseTime || 0),
+      checkColo: '',
+      exitColo: '',
+      message: '检测接口返回无效'
+    };
+  }
+
+  const probe = raw.probe_results || {};
+  const ipv4Exit = probe.ipv4?.exit || null;
+  const ipv6Exit = probe.ipv6?.exit || null;
+  const exit = ipv4Exit || ipv6Exit || {};
+  const hasSuccessField = typeof raw.success === 'boolean';
+
   return {
-    candidate: String(raw?.candidate || candidate || ''),
-    success: raw?.success === true,
+    candidate: String(raw.candidate || candidate || ''),
+    success: raw.success === true,
     source,
-    proxyIP: String(raw?.proxyIP || raw?.proxyip || ''),
-    portRemote: Number(raw?.portRemote || raw?.port || parsePortFromTarget(candidate) || 443),
-    responseTime: Number(raw?.responseTime || responseTime || 0),
-    colo: String(raw?.colo || light.colo || ''),
-    message: String(raw?.message || ''),
-    ip: String(light.ip || raw?.ip || ''),
-    ipType: String(light.ipType || raw?.ipType || ''),
-    asn: light.asn ?? raw?.asn ?? null,
-    asOrganization: String(light.asOrganization || light.org || raw?.asOrganization || raw?.org || ''),
-    country: String(light.country || raw?.country || ''),
-    region: String(light.region || light.regionCode || raw?.region || raw?.regionCode || ''),
-    city: String(light.city || raw?.city || '')
+    proxyIP: String(raw.proxyIP || raw.proxyip || exit.ip || ''),
+    portRemote: Number(raw.portRemote || raw.port || parsePortFromTarget(candidate) || 443),
+    responseTime: Number(raw.responseTime || responseTime || 0),
+    checkColo: String(raw.colo || ''),
+    exitIP: String(exit.ip || ''),
+    exitIpType: String(exit.ipType || ''),
+    exitColo: String(exit.colo || ''),
+    exitAsn: exit.asn ?? null,
+    exitOrganization: String(exit.asOrganization || exit.org || ''),
+    exitCountry: String(exit.country || ''),
+    exitRegion: String(exit.region || exit.regionCode || ''),
+    exitCity: String(exit.city || ''),
+    ip: String(exit.ip || raw.ip || ''),
+    ipType: String(exit.ipType || raw.ipType || ''),
+    colo: String(exit.colo || ''),
+    asn: exit.asn ?? raw.asn ?? null,
+    asOrganization: String(exit.asOrganization || exit.org || raw.asOrganization || raw.org || ''),
+    country: String(exit.country || raw.country || ''),
+    region: String(exit.region || exit.regionCode || raw.region || raw.regionCode || ''),
+    city: String(exit.city || raw.city || ''),
+    message: String(raw.message || (hasSuccessField ? '' : '检测接口缺少 success 字段，可能参数名错误或返回的是普通 IP 信息')),
+    inferredStack: String(raw.inferred_stack || ''),
+    supportsIPv4: raw.supports_ipv4 === true,
+    supportsIPv6: raw.supports_ipv6 === true,
+    dualStack: raw.dual_stack === true
   };
 }
 
@@ -293,9 +322,11 @@ function renderResolveResult(data) {
 }
 
 function targetLineFromResult(r) {
-  const target = r.candidate || `${r.proxyIP || r.ip}:${r.portRemote || 443}`;
-  const meta = [r.country, r.region, r.city, r.asn ? `AS${r.asn}` : '', r.asOrganization].filter(Boolean).join(' ');
-  return meta ? `${target}#${meta}` : target;
+  const host = r.proxyIP || r.exitIP || r.ip || String(r.candidate || '').split(':')[0];
+  const port = r.portRemote || parsePortFromTarget(r.candidate) || 443;
+  const target = host ? `${host}:${port}` : String(r.candidate || '');
+  const country = r.exitCountry || r.country || '';
+  return country ? `${target}#${country}` : target;
 }
 
 function resetCheckProgress(total) {
@@ -348,9 +379,9 @@ function renderFilterOptions() {
   const countryCurrent = checkFilters.country;
   const coloCurrent = checkFilters.colo;
   const countries = uniqueSorted(lastCheckResults.map(r => r.country));
-  const colos = uniqueSorted(lastCheckResults.map(r => r.colo));
+  const colos = uniqueSorted(lastCheckResults.map(r => r.exitColo || r.colo));
   countrySel.innerHTML = '<option value="all">全部国家</option>' + countries.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-  coloSel.innerHTML = '<option value="all">全部机房</option>' + colos.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  coloSel.innerHTML = '<option value="all">全部落地机房</option>' + colos.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
   countrySel.value = countries.includes(countryCurrent) ? countryCurrent : 'all';
   coloSel.value = colos.includes(coloCurrent) ? coloCurrent : 'all';
   checkFilters.country = countrySel.value;
@@ -363,10 +394,10 @@ function getFilteredCheckResults() {
     if (checkFilters.status === 'failed' && item.success === true) return false;
     if (checkFilters.source !== 'all' && item.source !== checkFilters.source) return false;
     if (checkFilters.country !== 'all' && item.country !== checkFilters.country) return false;
-    if (checkFilters.colo !== 'all' && item.colo !== checkFilters.colo) return false;
+    if (checkFilters.colo !== 'all' && (item.exitColo || item.colo) !== checkFilters.colo) return false;
     const keyword = String(checkFilters.keyword || '').trim().toLowerCase();
     if (keyword) {
-      const haystack = [item.candidate, item.proxyIP, item.ip, item.ipType, item.colo, item.country, item.region, item.city, item.asn, item.asOrganization, item.message, item.source].join(' ').toLowerCase();
+      const haystack = [item.candidate, item.proxyIP, item.exitIP, item.ip, item.ipType, item.checkColo, item.exitColo, item.colo, item.country, item.region, item.city, item.asn, item.asOrganization, item.message, item.source].join(' ').toLowerCase();
       if (!haystack.includes(keyword)) return false;
     }
     return true;
@@ -416,18 +447,22 @@ function renderCheckResults(results, options = {}) {
   }
   $('checkResult').innerHTML = visible.map(r => {
     const ok = r.success === true;
-    const location = [r.country, r.region, r.city].filter(Boolean).join(' / ') || '-';
-    const asn = [r.asn ? `AS${r.asn}` : '', r.asOrganization].filter(Boolean).join(' · ') || '-';
+    const location = [r.exitCountry || r.country, r.exitRegion || r.region, r.exitCity || r.city].filter(Boolean).join(' / ') || '-';
+    const asn = [r.exitAsn || r.asn ? `AS${r.exitAsn || r.asn}` : '', r.exitOrganization || r.asOrganization].filter(Boolean).join(' · ') || '-';
+    const exitIpText = [r.exitIP || r.ip || r.proxyIP || '-', r.exitIpType || r.ipType || ''].filter(Boolean).join(' ');
+    const stack = [r.inferredStack, r.supportsIPv4 ? 'IPv4' : '', r.supportsIPv6 ? 'IPv6' : '', r.dualStack ? 'DualStack' : ''].filter(Boolean).join(' · ');
     return `<article class="check-card ${ok ? 'ok' : 'bad'}">
-      <div class="check-title">${ok ? '可用' : '不可用'} · ${r.source === 'backup' ? '备用接口' : '主接口'}</div>
+      <div class="check-title">${ok ? '代理验证通过' : '代理验证失败'} · ${r.source === 'backup' ? '备用接口' : '主接口'}</div>
       <dl>
         <div><dt>候选目标</dt><dd>${escapeHtml(r.candidate || '-')}</dd></div>
-        <div><dt>出口 IP</dt><dd>${escapeHtml(r.ip || r.proxyIP || '-')} ${escapeHtml(r.ipType || '')}</dd></div>
-        <div><dt>目标端口</dt><dd>${escapeHtml(r.portRemote ?? '-')}</dd></div>
-        <div><dt>CF 机房</dt><dd>${escapeHtml(r.colo || '-')}</dd></div>
-        <div><dt>位置</dt><dd>${escapeHtml(location)}</dd></div>
+        <div><dt>代理目标</dt><dd>${escapeHtml((r.proxyIP || '-') + ':' + (r.portRemote || 443))}</dd></div>
+        <div><dt>检测入口</dt><dd>${escapeHtml(r.checkColo || '-')}</dd></div>
+        <div><dt>落地 IP</dt><dd>${escapeHtml(exitIpText)}</dd></div>
+        <div><dt>落地机房</dt><dd>${escapeHtml(r.exitColo || r.colo || '-')}</dd></div>
+        <div><dt>落地位置</dt><dd>${escapeHtml(location)}</dd></div>
         <div><dt>ASN</dt><dd>${escapeHtml(asn)}</dd></div>
         <div><dt>耗时</dt><dd>${escapeHtml(formatMs(r.responseTime))}</dd></div>
+        ${stack ? `<div><dt>协议栈</dt><dd>${escapeHtml(stack)}</dd></div>` : ''}
         ${r.message ? `<div><dt>说明</dt><dd>${escapeHtml(r.message)}</dd></div>` : ''}
       </dl>
     </article>`;
