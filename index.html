@@ -21,10 +21,11 @@
           <input id="remoteUrl" value="https://raw.githubusercontent.com/xgonce/Cloudflare_IP/refs/heads/main/result.csv" placeholder="远程 IP/CSV 地址" />
           <input id="remoteCountry" value="US" placeholder="CF归属国" />
           <input id="remotePort" value="443" placeholder="端口筛选" />
+          <select id="remoteFormat" title="远程格式"><option value="auto">自动识别</option><option value="csv">CSV</option><option value="txt">TXT</option></select>
           <button id="btnLoadRemote" class="primary">远程加载</button>
           <button id="btnLoadRemoteAppend">加载并追加保存</button>
         </div>
-        <p class="hint">CSV 会严格按表头提取 IP、端口，并同时筛选 CF归属国和端口。</p>
+        <p class="hint">支持 CSV / TXT / 自动识别。TXT 只有 IP 时会自动补端口；CSV 可按表头提取 IP、端口、CF归属国。</p>
       </div>
       <div class="actions"><button id="btnAppend" class="primary">追加保存</button><button id="btnReplace">覆盖保存</button><button id="btnRemove" class="danger">删除这些 IP</button><button id="btnLoadTrash">查看垃圾桶</button><button id="btnClearTrash" class="danger">清空垃圾桶</button></div>
     </section>
