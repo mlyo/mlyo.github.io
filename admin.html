@@ -10,7 +10,7 @@
   <header class="topbar">
     <div>
       <h1>DDNS Pro</h1>
-      <p>ProxyIP Manager · Worker Admin</p>
+      <p>轻量 ProxyIP / DDNS / IP 池管理</p>
     </div>
     <div class="top-actions">
       <span id="healthBadge" class="badge">状态检查中</span>
@@ -23,7 +23,7 @@
     <aside class="sidebar" aria-label="管理导航">
       <button class="nav active" data-panel="dashboard">概览</button>
       <button class="nav" data-panel="pool">IP 池</button>
-      <button class="nav" data-panel="tools">检测工具</button>
+      <button class="nav" data-panel="tools">检测</button>
       <button class="nav" data-panel="domain">域名</button>
       <button class="nav" data-panel="maintain">维护</button>
       <button class="nav" data-panel="mapping">映射</button>
@@ -41,10 +41,10 @@
           <div class="actions">
             <button class="primary" data-go="pool">管理 IP 池</button>
             <button data-go="tools">检测 ProxyIP</button>
-            <button data-go="maintain">立即维护</button>
+            <button data-go="domain">查询域名 DNS</button>
             <button data-go="mapping">编辑映射</button>
           </div>
-          <p class="hint">主页 / 不展示后台；后台入口为 /admin/，登录页为 /login。</p>
+          <p class="hint">主页 / 不展示后台；后台入口为 /admin/，登录页为 /login。当前版本保持 Worker 单文件、前端原生 JS。</p>
         </section>
       </section>
 
@@ -52,10 +52,16 @@
         <section class="card wide">
           <div class="card-title">
             <h2>IP 池管理</h2>
-            <div class="inline"><input id="poolKey" value="pool" placeholder="pool / pool_xxx" /><button id="btnLoadPool">加载</button><button id="btnCreatePool">创建池</button><button id="btnDeletePool" class="danger">删除池</button></div>
+            <div class="inline pool-selector">
+              <select id="poolSelect" title="选择 IP 池"><option value="pool">pool</option><option value="__custom__">自定义...</option></select>
+              <input id="customPoolKey" class="hidden" placeholder="自定义池名，如 us / pool_us" />
+              <button id="btnLoadPool">加载</button>
+              <button id="btnCreatePool">创建池</button>
+              <button id="btnDeletePool" class="danger">删除池</button>
+            </div>
           </div>
-          <div class="meta">当前数量：<b id="poolCount">-</b></div>
-          <textarea id="poolText" spellcheck="false" placeholder="每行一个 IP，例如：1.1.1.1:443"></textarea>
+          <div class="meta">当前池：<b id="poolKeyLabel">pool</b> · 当前数量：<b id="poolCount">-</b></div>
+          <textarea id="poolText" spellcheck="false" placeholder="每行一个目标，例如：1.1.1.1:443#US 或 [2606:4700::1]:443#IPv6"></textarea>
           <div class="actions"><button id="btnFormatPool">去重并格式化</button><button id="btnAppend" class="primary">追加保存</button><button id="btnReplace">覆盖保存</button><button id="btnRemove" class="danger">删除这些 IP</button><button id="btnLoadTrash">查看垃圾桶</button><button id="btnClearTrash" class="danger">清空垃圾桶</button></div>
         </section>
         <section class="card wide">
@@ -76,14 +82,19 @@
       </section>
 
       <section class="panel" id="panel-tools">
-        <div class="grid">
-          <section class="card"><h2>单个 ProxyIP 检测</h2><input id="checkIp" placeholder="1.1.1.1:443" /><div class="actions"><button id="btnCheckIp" class="primary">检测</button><label><input type="checkbox" id="useBackup" /> 使用备用接口</label></div><pre id="checkResult" class="result"></pre></section>
-          <section class="card"><h2>域名解析</h2><input id="lookupDomain" placeholder="example.com 或 txt@example.com" /><div class="actions"><button id="btnLookup" class="primary">查询</button></div><pre id="lookupResult" class="result"></pre></section>
-        </div>
+        <section class="card wide">
+          <div class="card-title"><h2>ProxyIP 检测</h2><div class="actions"><button id="btnResolveTargets">解析候选</button><button id="btnCheckTargets" class="primary">解析并检测</button></div></div>
+          <p class="hint">支持 IPv4、IPv6、域名、域名:端口、多行批量。检测接口使用主接口优先，失败自动切备用。</p>
+          <textarea id="checkTargets" class="small" spellcheck="false" placeholder="38.146.27.51:443&#10;example.com&#10;[2606:4700::1]:443"></textarea>
+          <div class="actions"><label><input type="checkbox" id="useBackup" /> 只使用备用接口</label><label><input type="checkbox" id="skipResolve" /> 不解析域名，直接检测</label><button id="btnCopyGood">复制成功项</button><button id="btnAddGoodToPool">成功项加入当前池</button></div>
+          <div id="resolveResult" class="muted check-output">等待解析</div>
+          <div id="checkResult" class="check-list">等待检测</div>
+        </section>
       </section>
 
       <section class="panel" id="panel-domain">
-        <section class="card wide"><h2>域名状态</h2><input id="targetIndex" value="0" placeholder="target index" /><div class="actions"><button id="btnStatus" class="primary">查询状态</button></div><pre id="statusResult" class="result"></pre></section>
+        <section class="card wide"><h2>域名 DNS 状态查询</h2><p class="hint">查询指定域名当前 A / AAAA / TXT 记录，以及是否配置了域名与 IP 池映射。</p><input id="domainStatusInput" placeholder="请输入域名，例如 example.com" /><div class="actions"><button id="btnDomainStatus" class="primary">查询 DNS 状态</button></div><pre id="domainStatusResult" class="result"></pre></section>
+        <section class="card wide"><h2>配置目标状态</h2><p class="hint">按 CF_DOMAIN 配置里的 target index 查询维护状态。通常用于调试。</p><input id="targetIndex" value="0" placeholder="target index" /><div class="actions"><button id="btnStatus">查询配置目标</button></div><pre id="statusResult" class="result"></pre></section>
       </section>
 
       <section class="panel" id="panel-maintain">
@@ -91,7 +102,7 @@
       </section>
 
       <section class="panel" id="panel-mapping">
-        <section class="card wide"><div class="card-title"><h2>域名与 IP 池映射</h2><div class="actions"><button id="btnLoadMapping">加载映射</button><button id="btnSaveMapping" class="primary">保存映射</button></div></div><p class="hint">JSON 格式，例如：{"us.example.com":"pool_US", "kr.example.com":"pool_KR"}。如果配置 REMOTE_COUNTRY_DOMAIN_MAP，系统会自动写入映射。</p><textarea id="mappingText" spellcheck="false" class="small"></textarea></section>
+        <section class="card wide"><div class="card-title"><h2>域名与 IP 池映射</h2><div class="actions"><button id="btnLoadMapping">加载映射</button><button id="btnSaveMapping" class="primary">保存映射</button></div></div><p class="hint">JSON 格式，例如：{"us.example.com":"pool_US", "kr.example.com":"pool_KR"}。此处是配置，不是 DNS 查询。</p><textarea id="mappingText" spellcheck="false" class="small"></textarea></section>
       </section>
     </section>
   </main>
