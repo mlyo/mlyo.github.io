@@ -94,6 +94,12 @@ async function refreshPools(prefer) {
   setCurrentPool(pools.includes(current) ? current : current || data.defaultPool || 'pool');
 }
 
+async function refreshPoolView(prefer = selectedPoolKey()) {
+  await refreshPools(prefer);
+  await loadPool(prefer);
+  toast('IP 池已同步');
+}
+
 async function bootStatus() {
   try {
     const [version, health] = await Promise.all([api.version(), api.health()]);
@@ -121,10 +127,8 @@ async function savePool(mode) {
   const key = selectedPoolKey();
   if (mode === 'replace' && !confirm(`确认覆盖 ${key}？原内容会被替换。`)) return;
   if (mode === 'remove' && !confirm(`确认从 ${key} 删除文本框中的 IP？`)) return;
-  const data = await run('保存成功', () => api.savePool({ poolKey: key, pool: $('poolText').value, mode }));
-  $('poolCount').textContent = data.count ?? '-';
-  updateSummary(key, data.count ?? '-');
-  await refreshPools(key).catch(() => {});
+  await run('保存成功', () => api.savePool({ poolKey: key, pool: $('poolText').value, mode }));
+  await refreshPoolView(key).catch(() => {});
 }
 
 function formatPoolText() {
@@ -160,9 +164,9 @@ async function loadRemote({ autoSave = false } = {}) {
   formatPoolText();
 
   if (autoSave) {
-    const saved = await run('远程 IP 已追加保存', () => api.savePool({ poolKey: selectedPoolKey(), pool: lines.join('\n'), mode: 'append' }));
-    $('poolCount').textContent = saved.count ?? '-';
-    updateSummary(selectedPoolKey(), saved.count ?? '-');
+    const key = selectedPoolKey();
+    await run('远程 IP 已追加保存', () => api.savePool({ poolKey: key, pool: lines.join('\n'), mode: 'append' }));
+    await refreshPoolView(key).catch(() => {});
   } else {
     toast(`已预览并放入编辑框：${lines.length} 条`);
   }
@@ -240,9 +244,9 @@ async function copyGoodResults() {
 async function addGoodToPool() {
   const lines = lastCheckResults.filter(r => r.success).map(targetLineFromResult);
   if (!lines.length) throw new Error('没有可加入的成功项');
-  const data = await api.savePool({ poolKey: selectedPoolKey(), pool: lines.join('\n'), mode: 'append' });
-  $('poolCount').textContent = data.count ?? '-';
-  updateSummary(selectedPoolKey(), data.count ?? '-');
+  const key = selectedPoolKey();
+  await api.savePool({ poolKey: key, pool: lines.join('\n'), mode: 'append' });
+  await refreshPoolView(key).catch(() => {});
   toast(`已加入当前池：${lines.length} 条`);
 }
 
@@ -260,6 +264,7 @@ async function maintain() {
   const data = await run('维护完成', () => api.maintain());
   const logs = data.allLogs || data.reports?.flatMap(r => r.logs || []) || [];
   $('logs').textContent = logs.length ? logs.join('\n') : pretty(data);
+  await refreshPoolView(selectedPoolKey()).catch(() => {});
 }
 
 async function loadMapping() {
@@ -273,6 +278,18 @@ async function saveMapping() {
   catch { throw new Error('映射不是有效 JSON'); }
   if (!confirm('确认保存域名与 IP 池映射？')) return;
   await run('映射已保存', () => api.saveDomainPoolMapping(mapping));
+}
+
+async function copyLogs() {
+  const text = ($('logs')?.innerText || $('logs')?.textContent || '').trim();
+  if (!text || text === '暂无日志') throw new Error('暂无日志可复制');
+  await navigator.clipboard.writeText(text);
+  toast('日志已复制');
+}
+
+function clearLogs() {
+  $('logs').textContent = '暂无日志';
+  toast('日志已清空');
 }
 
 function bind() {
@@ -293,7 +310,7 @@ function bind() {
   $('btnLoadRemote').onclick = () => loadRemote({ autoSave: false }).catch(() => {});
   $('btnLoadRemoteAppend').onclick = () => loadRemote({ autoSave: true }).catch(() => {});
   $('btnLoadTrash').onclick = () => { setCurrentPool('pool_trash'); switchPanel('pool'); loadPool('pool_trash').catch(() => {}); };
-  $('btnClearTrash').onclick = async () => { if (!confirm('确定清空垃圾桶？此操作不可恢复。')) return; await run('垃圾桶已清空', () => api.clearTrash()).catch(() => {}); if (selectedPoolKey() === 'pool_trash') loadPool('pool_trash').catch(() => {}); };
+  $('btnClearTrash').onclick = async () => { if (!confirm('确定清空垃圾桶？此操作不可恢复。')) return; await run('垃圾桶已清空', () => api.clearTrash()).catch(() => {}); await refreshPoolView(selectedPoolKey()).catch(() => {}); };
   $('btnCreatePool').onclick = async () => { const key = selectedPoolKey(); await run('IP 池已创建', () => api.createPool(key)).catch(() => {}); await refreshPools(key).catch(() => {}); loadPool(key).catch(() => {}); };
   $('btnDeletePool').onclick = async () => { const key = selectedPoolKey(); if (!confirm(`确定删除 ${key}？`)) return; await run('IP 池已删除', () => api.deletePool(key)).catch(() => {}); await refreshPools('pool').catch(() => {}); loadPool('pool').catch(() => {}); };
   $('btnResolveTargets').onclick = () => resolveTargets().catch(e => toast(e.message, 'err'));
@@ -303,6 +320,8 @@ function bind() {
   $('btnDomainStatus').onclick = () => domainStatus().catch(e => toast(e.message, 'err'));
   $('btnStatus').onclick = async () => { $('statusResult').textContent = '查询中...'; const data = await run('', () => api.currentStatus($('targetIndex').value.trim() || 0)).catch(e => ({ error: e.message })); $('statusResult').textContent = pretty(data); };
   $('btnMaintain').onclick = () => maintain().catch(() => {});
+  $('btnCopyLogs').onclick = () => copyLogs().catch(e => toast(e.message, 'err'));
+  $('btnClearLogs').onclick = () => clearLogs();
   $('btnLoadMapping').onclick = () => loadMapping().catch(() => {});
   $('btnSaveMapping').onclick = () => saveMapping().catch(e => toast(e.message, 'err'));
 }
