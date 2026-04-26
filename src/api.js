@@ -20,9 +20,9 @@ export async function apiRequest(path, options = {}) {
 
 export const api = {
   getPool: (poolKey = 'pool') => apiRequest(`/api/get-pool?poolKey=${encodeURIComponent(poolKey)}`),
-  loadRemoteUrl: ({ url, cfCountry = 'US', port = '443', defaultPort = '443' }) => apiRequest('/api/load-remote-url', {
+  loadRemoteUrl: ({ url, cfCountry = 'US', port = '443', defaultPort = '443', format = 'auto', ipColumn = '', portColumn = '', countryColumn = '' }) => apiRequest('/api/load-remote-url', {
     method: 'POST',
-    body: JSON.stringify({ url, cfCountry, port, defaultPort })
+    body: JSON.stringify({ url, cfCountry, port, defaultPort, format, ipColumn, portColumn, countryColumn })
   }),
   savePool: ({ poolKey = 'pool', pool = '', mode = 'append' }) => apiRequest('/api/save-pool', { method: 'POST', body: JSON.stringify({ poolKey, pool, mode }) }),
   checkIP: (ip, useBackup = false) => apiRequest(`/api/check-ip?ip=${encodeURIComponent(ip)}&useBackup=${useBackup}`),
