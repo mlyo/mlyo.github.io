@@ -1,49 +1,23 @@
-const STORAGE_KEY = 'DDNS_AUTH_KEY';
-const API_BASE_KEY = 'DDNS_API_BASE';
+const DIRECT_CHECK_API_ENDPOINT = 'https://api.090227.xyz/check?proxyip=';
+const DIRECT_CHECK_TIMEOUT = 30000;
+const DIRECT_CHECK_CONCURRENCY = 8;
 
-function normalizeBase(value) {
-  return String(value || '').trim().replace(/\/$/, '');
-}
-
-export function getApiBase() {
-  const fromQuery = new URL(location.href).searchParams.get('api');
-  if (fromQuery) {
-    const clean = normalizeBase(fromQuery);
-    localStorage.setItem(API_BASE_KEY, clean);
-    return clean;
-  }
-  return normalizeBase(localStorage.getItem(API_BASE_KEY) || window.DDNS_API_BASE || '');
-}
-
-export function setApiBase(value) {
-  const clean = normalizeBase(value);
-  if (clean) localStorage.setItem(API_BASE_KEY, clean);
-  else localStorage.removeItem(API_BASE_KEY);
-  return clean;
-}
-
-export function getAuthKey() {
-  return sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY) || '';
-}
-
-export function setAuthKey(value, remember = false) {
-  const key = String(value || '').trim();
-  sessionStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(STORAGE_KEY);
-  if (!key) return;
-  if (remember) localStorage.setItem(STORAGE_KEY, key);
-  else sessionStorage.setItem(STORAGE_KEY, key);
-}
-
+export function getAuthKey() { return ''; }
+export function setAuthKey() {}
 export function clearAuth() {
-  sessionStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem('DDNS_AUTH_KEY');
+  localStorage.removeItem('DDNS_AUTH_KEY');
+}
+
+function loginUrlForCurrentPage() {
+  const login = new URL('/login', location.origin);
+  login.searchParams.set('redirect', location.pathname + location.search + location.hash || '/admin/');
+  return login.pathname + login.search;
 }
 
 function apiUrl(path) {
-  const base = getApiBase();
   const p = String(path || '');
-  return base ? base + (p.startsWith('/') ? p : '/' + p) : p;
+  return p.startsWith('/') ? p : '/' + p;
 }
 
 function normalizeError(data, status) {
@@ -59,8 +33,7 @@ async function parseResponse(res) {
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (res.status === 401) {
     clearAuth();
-    const redirect = encodeURIComponent(location.pathname + location.search + location.hash);
-    location.href = `/login.html?redirect=${redirect}`;
+    location.href = loginUrlForCurrentPage();
     throw new Error('未授权，请重新登录');
   }
   if (!res.ok || data?.success === false) throw new Error(normalizeError(data, res.status));
@@ -81,8 +54,8 @@ export async function apiRequest(path, options = {}) {
     const res = await fetch(apiUrl(path), {
       ...options,
       headers,
-      credentials: 'omit',
-      signal: controller.signal,
+      credentials: 'same-origin',
+      signal: options.signal || controller.signal,
       cache: 'no-store'
     });
     return await parseResponse(res);
@@ -91,6 +64,85 @@ export async function apiRequest(path, options = {}) {
     throw e;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+export function getCheckConfig() {
+  return {
+    publicCheckApi: DIRECT_CHECK_API_ENDPOINT,
+    timeout: DIRECT_CHECK_TIMEOUT,
+    concurrency: DIRECT_CHECK_CONCURRENCY
+  };
+}
+
+function buildPublicCheckUrl(apiBase, target) {
+  const base = String(apiBase || '').trim();
+  if (!base) throw new Error('未配置直连检测接口');
+  const encoded = encodeURIComponent(target);
+  if (base.includes('{proxyip}')) return base.replace('{proxyip}', encoded);
+  if (base.includes('proxyip=')) return base + encoded;
+  return base + (base.includes('?') ? '&' : '?') + 'proxyip=' + encoded;
+}
+
+async function readJsonResponse(res) {
+  const text = await res.text();
+  try { return text ? JSON.parse(text) : null; }
+  catch { return { success: false, message: '检测接口没有返回有效 JSON', raw: text }; }
+}
+
+export function normalizeCheckResult(data, target, source = 'direct') {
+  const payload = data?.data ?? data ?? {};
+  const probe = payload.probe_results || payload.probeResults || {};
+  const ipv4Ok = Boolean(payload.supports_ipv4 ?? payload.supportsIPv4 ?? probe.ipv4?.ok);
+  const ipv6Ok = Boolean(payload.supports_ipv6 ?? payload.supportsIPv6 ?? probe.ipv6?.ok);
+  const success = Boolean(payload.success === true || payload.ok === true || payload.status === 'success' || ipv4Ok || ipv6Ok);
+  const exits = [];
+  if (probe.ipv4?.exit) exits.push({ stack: 'ipv4', ...probe.ipv4.exit });
+  if (probe.ipv6?.exit) exits.push({ stack: 'ipv6', ...probe.ipv6.exit });
+  if (!exits.length && payload.exit) exits.push({ stack: payload.ipType || 'exit', ...payload.exit });
+  const colo = payload.colo || payload.cfColo || exits.map(e => e.colo).filter(Boolean).join(',') || '';
+  const responseTime = payload.responseTime ?? payload.time ?? payload.ms ?? payload.latency ?? '';
+  return {
+    target: payload.candidate || payload.target || payload.address || target,
+    success,
+    source,
+    responseTime,
+    colo,
+    supportsIpv4: ipv4Ok,
+    supportsIpv6: ipv6Ok,
+    exits,
+    message: payload.message || payload.error || (success ? 'OK' : '检测未通过'),
+    raw: payload
+  };
+}
+
+export async function checkProxyDirect(target, options = {}) {
+  const timeout = Number(options.timeout || getCheckConfig().timeout || 30000);
+  const controller = new AbortController();
+  const linkedSignal = options.signal;
+  const abort = () => controller.abort();
+  if (linkedSignal) {
+    if (linkedSignal.aborted) controller.abort();
+    else linkedSignal.addEventListener('abort', abort, { once: true });
+  }
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(buildPublicCheckUrl(options.publicCheckApi || getCheckConfig().publicCheckApi, target), {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    const data = await readJsonResponse(res);
+    if (!res.ok) data.success = false;
+    const normalized = normalizeCheckResult(data, target, 'direct');
+    if (!res.ok) normalized.message = normalized.message || `HTTP ${res.status}`;
+    return normalized;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('前端直连检测超时');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    if (linkedSignal) linkedSignal.removeEventListener('abort', abort);
   }
 }
 
@@ -116,6 +168,6 @@ export const api = {
   async logout() {
     try { await apiRequest('/api/auth/logout', { method: 'POST' }); } catch {}
     clearAuth();
-    location.href = '/login.html';
+    location.href = loginUrlForCurrentPage();
   }
 };
