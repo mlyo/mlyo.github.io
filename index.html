@@ -3,39 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DDNS Pro · ProxyIP Manager</title>
-  <link rel="stylesheet" href="./src/style.css" />
+  <title>Welcome</title>
+  <style>
+    body{width:35em;margin:0 auto;font-family:Tahoma,Verdana,Arial,sans-serif;color:#111;background:#fff}
+    @media(max-width:720px){body{width:auto;margin:24px}}
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div><h1>DDNS Pro</h1><p>ProxyIP Manager · Worker Admin</p></div>
-    <div class="top-actions"><button id="btnRefreshAll" class="primary">刷新</button><button id="btnLogout">退出</button></div>
-  </header>
-  <main class="layout">
-    <section class="card wide">
-      <div class="card-title"><h2>IP 池管理</h2><div class="inline"><input id="poolKey" value="pool" placeholder="pool / pool_xxx" /><button id="btnLoadPool">加载</button><button id="btnCreatePool">创建池</button><button id="btnDeletePool" class="danger">删除池</button></div></div>
-      <div class="meta">当前数量：<b id="poolCount">-</b></div>
-      <textarea id="poolText" spellcheck="false" placeholder="每行一个 IP，例如：1.1.1.1:443"></textarea>
-      <div class="remote-box">
-        <div class="inline grow">
-          <input id="remoteUrl" value="https://raw.githubusercontent.com/xgonce/Cloudflare_IP/refs/heads/main/result.csv" placeholder="远程 IP/CSV 地址" />
-          <input id="remoteCountry" value="US" placeholder="CF归属国" />
-          <input id="remotePort" value="443" placeholder="端口筛选" />
-          <select id="remoteFormat" title="远程格式"><option value="auto">自动识别</option><option value="csv">CSV</option><option value="txt">TXT</option></select>
-          <button id="btnLoadRemote" class="primary">远程加载</button>
-          <button id="btnLoadRemoteAppend">加载并追加保存</button>
-        </div>
-        <p class="hint">支持 CSV / TXT / 自动识别。TXT 只有 IP 时会自动补端口；CSV 可按表头提取 IP、端口、CF归属国。</p>
-      </div>
-      <div class="actions"><button id="btnAppend" class="primary">追加保存</button><button id="btnReplace">覆盖保存</button><button id="btnRemove" class="danger">删除这些 IP</button><button id="btnLoadTrash">查看垃圾桶</button><button id="btnClearTrash" class="danger">清空垃圾桶</button></div>
-    </section>
-    <section class="card"><h2>单个 ProxyIP 检测</h2><input id="checkIp" placeholder="1.1.1.1:443" /><div class="actions"><button id="btnCheckIp" class="primary">检测</button><label><input type="checkbox" id="useBackup" /> 使用备用接口</label></div><pre id="checkResult" class="result"></pre></section>
-    <section class="card"><h2>域名状态</h2><input id="targetIndex" value="0" placeholder="target index" /><div class="actions"><button id="btnStatus" class="primary">查询状态</button></div><pre id="statusResult" class="result"></pre></section>
-    <section class="card"><h2>域名解析</h2><input id="lookupDomain" placeholder="example.com 或 txt@example.com" /><div class="actions"><button id="btnLookup" class="primary">查询</button></div><pre id="lookupResult" class="result"></pre></section>
-    <section class="card wide"><div class="card-title"><h2>手动维护</h2><button id="btnMaintain" class="primary">立即维护</button></div><pre id="logs" class="logs"></pre></section>
-    <section class="card wide"><div class="card-title"><h2>域名与 IP 池映射</h2><button id="btnLoadMapping">加载映射</button><button id="btnSaveMapping" class="primary">保存映射</button></div><p class="hint">JSON 格式，例如：{"us.example.com":"pool_US", "kr.example.com":"pool_KR"}。如果配置 REMOTE_COUNTRY_DOMAIN_MAP，系统会自动写入映射。</p><textarea id="mappingText" spellcheck="false" class="small"></textarea></section>
-  </main>
-  <div id="toast" class="toast"></div>
-  <script type="module" src="./src/main.js"></script>
+  <h1>Welcome to nginx!</h1>
+  <p>If you see this page, the web server is successfully installed and working. Further configuration is required.</p>
+  <p>For online documentation and support please refer to <a href="http://nginx.org/">nginx.org</a>.</p>
+  <p><em>Thank you for using nginx.</em></p>
 </body>
 </html>
