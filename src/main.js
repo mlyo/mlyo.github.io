@@ -24,9 +24,9 @@ const FRONTEND_CHECK_API = 'https://cf.090227.xyz/check?proxyip=';
 const FRONTEND_CHECK_API_BACKUP = 'https://api.090227.xyz/check?proxyip=';
 
 function getFrontendConcurrency() {
-  const n = Number($('frontendConcurrency')?.value || 20);
-  if (!Number.isFinite(n)) return 20;
-  return Math.max(1, Math.min(500, Math.floor(n)));
+  const n = Number($('frontendConcurrency')?.value || 30);
+  if (!Number.isFinite(n)) return 30;
+  return Math.max(1, Math.min(200, Math.floor(n)));
 }
 
 function normalizeExternalCheckResult(raw, candidate, source, responseTime) {
@@ -543,13 +543,13 @@ async function checkTargets() {
     resetCheckProgress(candidates.length);
     renderCheckProgress('检测中');
 
-    const batchSize = Math.max(1, Math.min(50, concurrency));
+    const batchSize = 2; // 外部接口每次最多稳定检测 2 个 proxyip，前端通过多组并发提速。
     const batches = [];
     for (let i = 0; i < candidates.length; i += batchSize) batches.push(candidates.slice(i, i + batchSize));
 
     const results = await runWithConcurrency(
       batches,
-      Math.max(1, Math.min(10, Math.ceil(concurrency / batchSize))),
+      concurrency,
       (batch) => checkCandidateBatch(batch, useBackupOnly),
       (done, total, batchResults) => {
         if (runId !== checkRunToken) return;
