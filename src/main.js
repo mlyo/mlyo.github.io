@@ -41,9 +41,10 @@ async function loadRemote({ autoSave = false } = {}) {
   const cfCountry = $('remoteCountry').value.trim() || 'US';
   const port = $('remotePort').value.trim() || '443';
   const defaultPort = port;
+  const format = $('remoteFormat')?.value || 'auto';
   if (!url) throw new Error('请填写远程地址');
 
-  const data = await run('', () => api.loadRemoteUrl({ url, cfCountry, port, defaultPort }));
+  const data = await run('', () => api.loadRemoteUrl({ url, cfCountry, port, defaultPort, format }));
   const ips = data.ips || '';
   if (!ips) {
     toast(`远程加载完成，但没有匹配 CF归属国=${cfCountry} 且端口=${port} 的 IP`, 'err');
