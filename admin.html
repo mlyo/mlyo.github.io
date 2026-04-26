@@ -126,6 +126,15 @@
   </main>
 
   <div id="toast" class="toast"></div>
+  <script>
+    setTimeout(() => {
+      const badge = document.getElementById('healthBadge');
+      if (!window.__DDNS_PRO_BOOTED && badge && badge.textContent.includes('状态检查中')) {
+        badge.textContent = '前端脚本未启动 · 请检查 /admin/src/main.js';
+        badge.className = 'badge bad';
+      }
+    }, 3000);
+  </script>
   <script type="module" src="/admin/src/main.js"></script>
 </body>
 </html>
