@@ -111,8 +111,7 @@ export function normalizeCheckResult(data, target, source = 'direct') {
     supportsIpv4: ipv4Ok,
     supportsIpv6: ipv6Ok,
     exits,
-    message: payload.message || payload.error || (success ? 'OK' : '检测未通过'),
-    raw: payload
+    message: payload.message || payload.error || (success ? 'OK' : '检测未通过')
   };
 }
 
