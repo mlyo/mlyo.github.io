@@ -1,5 +1,7 @@
 import { api } from './api.js';
 
+window.__DDNS_PRO_BOOTED = true;
+
 const $ = (id) => document.getElementById(id);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const pretty = (data) => typeof data === 'string' ? data : JSON.stringify(data, null, 2);
@@ -380,7 +382,7 @@ function updateFilterSummary(filtered) {
 
 function setStatusFilter(status) {
   checkFilters.status = status;
-  $('[data-filter-status]').forEach(btn => btn.classList.toggle('active', btn.dataset.filterStatus === status));
+  $$('[data-filter-status]').forEach(btn => btn.classList.toggle('active', btn.dataset.filterStatus === status));
   renderCheckResults(lastCheckResults, { keepFilters: true });
 }
 
@@ -390,7 +392,7 @@ function clearCheckFilters() {
   checkFilters.country = 'all';
   checkFilters.colo = 'all';
   checkFilters.keyword = '';
-  $('[data-filter-status]').forEach(btn => btn.classList.toggle('active', btn.dataset.filterStatus === 'all'));
+  $$('[data-filter-status]').forEach(btn => btn.classList.toggle('active', btn.dataset.filterStatus === 'all'));
   if ($('filterSource')) $('filterSource').value = 'all';
   if ($('filterCountry')) $('filterCountry').value = 'all';
   if ($('filterColo')) $('filterColo').value = 'all';
@@ -499,8 +501,7 @@ function successfulResults(results = lastCheckResults) {
 async function copyGoodResults() {
   const lines = successfulResults(lastCheckResults).map(targetLineFromResult);
   if (!lines.length) throw new Error('没有可复制的可用项');
-  await navigator.clipboard.writeText(lines.join('
-'));
+  await navigator.clipboard.writeText(lines.join('\n'));
   toast(`已复制可用项 ${lines.length} 条`);
 }
 
@@ -508,8 +509,7 @@ async function addGoodToPool() {
   const lines = successfulResults(lastCheckResults).map(targetLineFromResult);
   if (!lines.length) throw new Error('没有可加入的可用项');
   const key = selectedPoolKey();
-  await api.savePool({ poolKey: key, pool: lines.join('
-'), mode: 'append' });
+  await api.savePool({ poolKey: key, pool: lines.join('\n'), mode: 'append' });
   await refreshPoolView(key).catch(() => {});
   toast(`已加入当前池：${lines.length} 条`);
 }
@@ -518,8 +518,7 @@ async function copyFilteredResults() {
   const visible = getFilteredCheckResults();
   if (!visible.length) throw new Error('当前筛选没有结果');
   const lines = visible.map(targetLineFromResult);
-  await navigator.clipboard.writeText(lines.join('
-'));
+  await navigator.clipboard.writeText(lines.join('\n'));
   toast(`已复制筛选结果 ${lines.length} 条`);
 }
 
@@ -527,8 +526,7 @@ async function addFilteredGoodToPool() {
   const lines = successfulResults(getFilteredCheckResults()).map(targetLineFromResult);
   if (!lines.length) throw new Error('当前筛选没有可用项');
   const key = selectedPoolKey();
-  await api.savePool({ poolKey: key, pool: lines.join('
-'), mode: 'append' });
+  await api.savePool({ poolKey: key, pool: lines.join('\n'), mode: 'append' });
   await refreshPoolView(key).catch(() => {});
   toast(`已加入筛选可用项：${lines.length} 条`);
 }
@@ -603,7 +601,7 @@ function bind() {
   $('btnAddGoodToPool').onclick = () => addGoodToPool().catch(e => toast(e.message, 'err'));
   $('btnCopyFiltered').onclick = () => copyFilteredResults().catch(e => toast(e.message, 'err'));
   $('btnAddFilteredToPool').onclick = () => addFilteredGoodToPool().catch(e => toast(e.message, 'err'));
-  $('[data-filter-status]').forEach(btn => btn.onclick = () => setStatusFilter(btn.dataset.filterStatus || 'all'));
+  $$('[data-filter-status]').forEach(btn => btn.onclick = () => setStatusFilter(btn.dataset.filterStatus || 'all'));
   $('filterSource').onchange = () => { checkFilters.source = $('filterSource').value; renderCheckResults(lastCheckResults, { keepFilters: true }); };
   $('filterCountry').onchange = () => { checkFilters.country = $('filterCountry').value; renderCheckResults(lastCheckResults, { keepFilters: true }); };
   $('filterColo').onchange = () => { checkFilters.colo = $('filterColo').value; renderCheckResults(lastCheckResults, { keepFilters: true }); };
@@ -618,6 +616,32 @@ function bind() {
   $('btnSaveMapping').onclick = () => saveMapping().catch(e => toast(e.message, 'err'));
 }
 
-bind();
-bootStatus();
-refreshPools().then(() => loadPool()).catch(() => loadPool().catch(() => {}));
+async function initApp() {
+  try {
+    bind();
+  } catch (e) {
+    console.error('前端事件绑定失败:', e);
+    if ($('healthBadge')) {
+      $('healthBadge').textContent = '前端初始化异常 · ' + (e.message || '事件绑定失败');
+      $('healthBadge').className = 'badge bad';
+    }
+    toast('前端初始化异常：' + (e.message || '事件绑定失败'), 'err');
+    return;
+  }
+
+  try {
+    await bootStatus();
+  } catch (e) {
+    console.error('状态检查失败:', e);
+  }
+
+  try {
+    await refreshPools();
+    await loadPool();
+  } catch (e) {
+    console.error('IP 池初始化失败:', e);
+    toast('IP 池加载失败：' + (e.message || '未知错误'), 'err');
+  }
+}
+
+initApp();
