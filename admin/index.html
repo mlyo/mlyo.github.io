@@ -21,12 +21,12 @@
 
   <main class="layout">
     <aside class="sidebar">
-      <button class="nav active" data-panel="dashboard">概览</button>
-      <button class="nav" data-panel="pool">IP 池</button>
-      <button class="nav" data-panel="check">检测解析</button>
-      <button class="nav" data-panel="domain">域名 DNS</button>
-      <button class="nav" data-panel="mapping">域名映射</button>
-      <button class="nav" data-panel="maintain">维护任务</button>
+      <button class="nav active" data-panel="dashboard"><span class="nav-icon">⌂</span><span class="nav-label">概览</span></button>
+      <button class="nav" data-panel="pool"><span class="nav-icon">▦</span><span class="nav-label">IP 池</span></button>
+      <button class="nav" data-panel="check"><span class="nav-icon">◎</span><span class="nav-label">检测</span></button>
+      <button class="nav" data-panel="domain"><span class="nav-icon">◌</span><span class="nav-label">DNS</span></button>
+      <button class="nav" data-panel="mapping"><span class="nav-icon">⇄</span><span class="nav-label">映射</span></button>
+      <button class="nav" data-panel="maintain"><span class="nav-icon">⚙</span><span class="nav-label">维护</span></button>
     </aside>
 
     <section class="content">
@@ -68,17 +68,19 @@
           </div>
         </section>
 
-        <section class="card">
-          <div class="card-title"><h2>远程导入</h2></div>
-          <div class="grid4">
-            <input id="remoteUrl" placeholder="远程 TXT/CSV URL" />
-            <input id="remoteCountry" placeholder="国家/地区过滤，可空" />
-            <input id="remotePort" value="443" placeholder="默认端口" />
-            <select id="remoteFormat"><option value="auto">自动</option><option value="txt">TXT</option><option value="csv">CSV</option></select>
+        <details class="card fold-card">
+          <summary><span>远程导入</span><small>URL / TXT / CSV</small></summary>
+          <div class="fold-body">
+            <div class="grid4">
+              <input id="remoteUrl" placeholder="远程 TXT/CSV URL" />
+              <input id="remoteCountry" placeholder="国家/地区过滤，可空" />
+              <input id="remotePort" value="443" placeholder="默认端口" />
+              <select id="remoteFormat"><option value="auto">自动</option><option value="txt">TXT</option><option value="csv">CSV</option></select>
+            </div>
+            <div class="actions"><button id="btnPreviewRemote" class="primary">预览</button><button id="btnImportRemote">导入到当前池</button></div>
+            <pre id="remotePreview" class="result small"></pre>
           </div>
-          <div class="actions"><button id="btnPreviewRemote" class="primary">预览</button><button id="btnImportRemote">导入到当前池</button></div>
-          <pre id="remotePreview" class="result small"></pre>
-        </section>
+        </details>
       </section>
 
       <section class="panel" id="panel-check">
@@ -125,7 +127,7 @@
         <section class="card">
           <div class="card-title"><h2>域名 DNS 状态</h2></div>
           <div class="inline"><input id="domainInput" placeholder="example.com" /><button id="btnDomainStatus" class="primary">查询</button></div>
-          <pre id="domainOutput" class="result"></pre>
+          <div id="domainOutput" class="domain-result"></div>
         </section>
       </section>
 
@@ -142,7 +144,10 @@
         <section class="card">
           <div class="card-title"><h2>手动维护</h2><button id="btnMaintain" class="primary">立即维护</button></div>
           <p class="hint">维护顺序：先检测当前 DNS，再从映射池补足，新增成功后再清理失效记录，避免一次检测异常导致清空。</p>
-          <pre id="maintainOutput" class="result"></pre>
+          <details class="inner-fold" open>
+            <summary><span>维护日志</span><small>执行后自动更新</small></summary>
+            <pre id="maintainOutput" class="result"></pre>
+          </details>
         </section>
       </section>
     </section>
