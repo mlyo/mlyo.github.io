@@ -1,2 +1,56 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DDNS Pro Login</title></head><body><script>location.href='/login'</script></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DDNS Pro 登录</title>
+  <script src="/config.js"></script>
+  <style>
+    :root{color-scheme:dark;--bg:#0f172a;--card:#111827;--line:#334155;--text:#e5e7eb;--muted:#94a3b8;--primary:#2563eb;--error:#fca5a5}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#020617,#0f172a);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.card{width:min(440px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.35)}h1{margin:0 0 8px}.hint{color:var(--muted);line-height:1.7;margin:0 0 18px}.field{margin-top:12px}label{display:block;margin-bottom:8px;color:#cbd5e1;font-size:14px}input{width:100%;border-radius:12px;padding:12px 14px;background:#020617;color:var(--text);border:1px solid #475569;font:inherit}button{width:100%;margin-top:16px;border:0;border-radius:12px;background:var(--primary);color:white;padding:12px 14px;font:inherit;font-weight:700;cursor:pointer}.row{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--muted);font-size:14px}.row input{width:auto}.err{min-height:22px;color:var(--error);margin-top:12px;line-height:1.6}code{color:#bfdbfe}</style>
+</head>
+<body>
+  <form class="card" id="form">
+    <h1>DDNS Pro</h1>
+    <p class="hint">前端已独立部署。这里仅向 Worker API 发送登录校验，不从 Worker 加载后台页面。</p>
+    <div class="field">
+      <label for="apiBase">Worker API 地址</label>
+      <input id="apiBase" name="apiBase" placeholder="https://xxx.workers.dev，反代同源可留空" />
+    </div>
+    <div class="field">
+      <label for="password">AUTH_KEY</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" autofocus />
+    </div>
+    <label class="row"><input id="remember" type="checkbox" /> 记住 AUTH_KEY 到本机浏览器</label>
+    <button id="submit">登录</button>
+    <div class="err" id="err"></div>
+  </form>
+  <script type="module">
+    import { api, setAuthKey, setApiBase, getApiBase } from './admin/src/api.js';
+    const form = document.getElementById('form');
+    const apiBase = document.getElementById('apiBase');
+    const password = document.getElementById('password');
+    const remember = document.getElementById('remember');
+    const err = document.getElementById('err');
+    const submit = document.getElementById('submit');
+    apiBase.value = getApiBase();
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      err.textContent = '';
+      submit.disabled = true;
+      submit.textContent = '登录中...';
+      try {
+        setApiBase(apiBase.value);
+        await api.login(password.value);
+        setAuthKey(password.value, remember.checked);
+        const redirect = new URL(location.href).searchParams.get('redirect') || '/admin/';
+        location.href = redirect;
+      } catch (ex) {
+        err.textContent = ex.message || '登录失败，请检查 Worker 地址、CORS 和 AUTH_KEY';
+      } finally {
+        submit.disabled = false;
+        submit.textContent = '登录';
+      }
+    });
+  </script>
+</body>
+</html>
