@@ -404,10 +404,31 @@ function exportSuccess() {
   downloadText('proxyip-success.txt', text + '\n');
 }
 
+function renderListChips(values, emptyText = '无') {
+  if (!Array.isArray(values) || !values.length) return `<span class="meta-chip soft">${emptyText}</span>`;
+  return values.map(v => chip(String(v), 'soft')).join('');
+}
+
+function renderDomainStatus(result) {
+  const cards = [
+    ['A', renderListChips(result.A)],
+    ['AAAA', renderListChips(result.AAAA)],
+    ['TXT', renderListChips(result.TXT)],
+    ['映射池', result.pool ? chip(result.pool, 'ok') : chip('未映射', 'soft')]
+  ];
+  return `
+    <article class="domain-card">
+      <div class="domain-head"><code>${escapeHtml(result.domain || '-')}</code><span>DNS</span></div>
+      <div class="domain-grid">
+        ${cards.map(([name, value]) => `<div class="domain-row"><b>${name}</b><div>${value}</div></div>`).join('')}
+      </div>
+    </article>`;
+}
+
 async function domainStatus() {
   const domain = $('domainInput').value.trim();
   const result = await api.domainStatus(domain);
-  $('domainOutput').textContent = pretty(result);
+  $('domainOutput').innerHTML = renderDomainStatus(result);
 }
 
 async function loadMapping() {
@@ -442,6 +463,8 @@ function renderMaintainReport(data) {
 async function doMaintain() {
   const result = await api.maintain();
   $('maintainOutput').textContent = renderMaintainReport(result);
+  const fold = document.querySelector('#panel-maintain .inner-fold');
+  if (fold) fold.open = true;
 }
 
 async function init() {
