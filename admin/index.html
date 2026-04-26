@@ -38,7 +38,8 @@
         </div>
         <section class="card">
           <div class="card-title"><h2>维护目标</h2><button id="btnLoadConfig">重新读取</button></div>
-          <div class="table-wrap"><table><thead><tr><th>模式</th><th>域名</th><th>端口</th><th>最小活跃</th></tr></thead><tbody id="targetsBody"></tbody></table></div>
+          <div class="table-wrap targets-table"><table><thead><tr><th>模式</th><th>域名</th><th>端口</th><th>最小活跃</th></tr></thead><tbody id="targetsBody"></tbody></table></div>
+          <div id="targetsCards" class="mobile-target-cards"></div>
         </section>
       </section>
 
@@ -46,7 +47,7 @@
         <section class="card">
           <div class="card-title">
             <h2>IP 池管理</h2>
-            <div class="inline">
+            <div class="inline pool-controls">
               <select id="poolSelect"><option value="pool">pool</option></select>
               <input id="customPoolKey" placeholder="新池名，如 us / pool_us" />
               <button id="btnCreatePool">创建</button>
