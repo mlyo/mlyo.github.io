@@ -84,9 +84,9 @@
       <section class="panel" id="panel-tools">
         <section class="card wide">
           <div class="card-title"><h2>ProxyIP 检测</h2><div class="actions"><button id="btnResolveTargets">解析候选</button><button id="btnCheckTargets" class="primary">解析并检测</button></div></div>
-          <p class="hint">支持 IPv4、IPv6、域名、域名:端口、多行批量。检测接口使用主接口优先，失败自动切备用。</p>
+          <p class="hint">支持 IPv4、IPv6、域名、域名:端口、多行批量。检测工具采用浏览器前端并发直连外部检测接口，速度接近公共检测站；后端自动维护仍使用稳态低并发。</p>
           <textarea id="checkTargets" class="small" spellcheck="false" placeholder="38.146.27.51:443&#10;example.com&#10;[2606:4700::1]:443"></textarea>
-          <div class="actions"><label><input type="checkbox" id="useBackup" /> 只使用备用接口</label><label><input type="checkbox" id="skipResolve" /> 不解析域名，直接检测</label><button id="btnCopyGood">复制成功项</button><button id="btnAddGoodToPool">成功项加入当前池</button></div>
+          <div class="actions"><label><input type="checkbox" id="useBackup" /> 只使用备用接口</label><label><input type="checkbox" id="skipResolve" /> 不解析域名，直接检测</label><label class="inline-label">并发 <input id="frontendConcurrency" class="mini-input" value="20" inputmode="numeric" /></label><button id="btnCopyGood">复制成功项</button><button id="btnAddGoodToPool">成功项加入当前池</button></div>
           <div id="resolveResult" class="muted check-output">等待解析</div>
           <div id="checkResult" class="check-list">等待检测</div>
         </section>
@@ -98,7 +98,7 @@
       </section>
 
       <section class="panel" id="panel-maintain">
-        <section class="card wide"><div class="card-title"><h2>手动维护</h2><div class="actions"><button id="btnCopyLogs">复制日志</button><button id="btnClearLogs" class="danger">清空日志</button><button id="btnMaintain" class="primary">立即维护</button></div></div><p class="hint">维护采用够用即停、缓存复用、失败延迟入垃圾桶；结果会显示在下方日志区域。</p><pre id="logs" class="logs">暂无日志</pre></section>
+        <section class="card wide"><div class="card-title"><h2>手动维护</h2><div class="actions"><button id="btnCopyLogs">复制日志</button><button id="btnClearLogs" class="danger">清空日志</button><button id="btnMaintain" class="primary">立即维护</button></div></div><p class="hint">维护采用当前 DNS 优先、失效才补位、后端低并发、失败延迟入垃圾桶；结果会显示在下方日志区域。</p><pre id="logs" class="logs">暂无日志</pre></section>
       </section>
 
       <section class="panel" id="panel-mapping">
