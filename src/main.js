@@ -14,6 +14,109 @@ function formatMs(value) {
   return Number.isFinite(n) && n > 0 ? `${Math.round(n)} ms` : '-';
 }
 
+const FRONTEND_CHECK_API = 'https://cf.090227.xyz/check?proxyip=';
+const FRONTEND_CHECK_API_BACKUP = 'https://api.090227.xyz/check?proxyip=';
+
+function getFrontendConcurrency() {
+  const n = Number($('frontendConcurrency')?.value || 20);
+  if (!Number.isFinite(n)) return 20;
+  return Math.max(1, Math.min(50, Math.floor(n)));
+}
+
+function normalizeExternalCheckResult(raw, candidate, source, responseTime) {
+  const probe = raw?.probe_results || {};
+  const ipv4 = probe.ipv4 || {};
+  const ipv6 = probe.ipv6 || {};
+  const light = ipv4.ip ? ipv4 : (ipv6.ip ? ipv6 : {});
+  return {
+    candidate: String(raw?.candidate || candidate || ''),
+    success: raw?.success === true,
+    source,
+    proxyIP: String(raw?.proxyIP || raw?.proxyip || ''),
+    portRemote: Number(raw?.portRemote || raw?.port || parsePortFromTarget(candidate) || 443),
+    responseTime: Number(raw?.responseTime || responseTime || 0),
+    colo: String(raw?.colo || light.colo || ''),
+    message: String(raw?.message || ''),
+    ip: String(light.ip || raw?.ip || ''),
+    ipType: String(light.ipType || raw?.ipType || ''),
+    asn: light.asn ?? raw?.asn ?? null,
+    asOrganization: String(light.asOrganization || light.org || raw?.asOrganization || raw?.org || ''),
+    country: String(light.country || raw?.country || ''),
+    region: String(light.region || light.regionCode || raw?.region || raw?.regionCode || ''),
+    city: String(light.city || raw?.city || '')
+  };
+}
+
+function parsePortFromTarget(target) {
+  const text = String(target || '').split('#')[0].trim();
+  const m6 = text.match(/^\[[^\]]+\]:(\d+)$/);
+  if (m6) return Number(m6[1]);
+  const colonCount = (text.match(/:/g) || []).length;
+  if (colonCount === 1) {
+    const maybe = Number(text.slice(text.lastIndexOf(':') + 1));
+    if (Number.isInteger(maybe) && maybe >= 1 && maybe <= 65535) return maybe;
+  }
+  return 443;
+}
+
+async function callExternalCheck(candidate, source = 'main') {
+  const base = source === 'backup' ? FRONTEND_CHECK_API_BACKUP : FRONTEND_CHECK_API;
+  const started = performance.now();
+  const res = await fetch(base + encodeURIComponent(candidate), { cache: 'no-store' });
+  const text = await res.text();
+  let raw;
+  try { raw = text ? JSON.parse(text) : {}; }
+  catch { raw = { success: false, message: text || '检测接口返回非 JSON' }; }
+  if (!res.ok) raw = { ...raw, success: false, message: raw.message || ('HTTP ' + res.status) };
+  return normalizeExternalCheckResult(raw, candidate, source, performance.now() - started);
+}
+
+async function checkOneCandidate(candidate, useBackupOnly = false) {
+  if (useBackupOnly) return callExternalCheck(candidate, 'backup');
+  try {
+    const main = await callExternalCheck(candidate, 'main');
+    if (main.success === true) return main;
+    try {
+      const backup = await callExternalCheck(candidate, 'backup');
+      return backup.success === true ? backup : { ...main, source: 'main', message: main.message || backup.message || '主备接口均未返回 success=true' };
+    } catch (e) {
+      return { ...main, message: main.message || e.message || '备用接口异常' };
+    }
+  } catch (e) {
+    try { return await callExternalCheck(candidate, 'backup'); }
+    catch (be) { return { candidate, success: false, source: 'main', responseTime: 0, portRemote: parsePortFromTarget(candidate), message: be.message || e.message || '检测失败' }; }
+  }
+}
+
+async function runWithConcurrency(items, limit, worker, onProgress) {
+  const results = new Array(items.length);
+  let next = 0;
+  let done = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      try { results[index] = await worker(items[index], index); }
+      catch (e) { results[index] = { candidate: items[index], success: false, message: e.message || '检测失败' }; }
+      done += 1;
+      onProgress?.(done, items.length, results[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+function collectResolvedTargets(resolveData, fallbackInputs) {
+  if (!resolveData) return fallbackInputs;
+  const out = [];
+  const push = v => { const s = String(v || '').trim(); if (s && !out.includes(s)) out.push(s); };
+  if (Array.isArray(resolveData.targets)) resolveData.targets.forEach(push);
+  if (Array.isArray(resolveData.results)) {
+    for (const item of resolveData.results) (item.targets || []).forEach(push);
+  }
+  return out.length ? out : fallbackInputs;
+}
+
+
 function toast(message, type = 'ok') {
   const el = $('toast');
   el.textContent = message;
@@ -226,12 +329,39 @@ async function resolveTargets() {
 async function checkTargets() {
   const inputs = getCheckInputs();
   if (!inputs.length) throw new Error('请输入检测目标');
-  $('checkResult').textContent = '检测中...';
-  $('resolveResult').textContent = $('skipResolve').checked ? '已跳过解析' : '解析并检测中...';
-  const data = await api.checkBatch({ targets: inputs, resolve: !$('skipResolve').checked, useBackup: $('useBackup').checked });
-  renderResolveResult({ results: data.resolved || [] });
-  renderCheckResults(data.results || []);
-  toast(`检测完成：可用 ${data.successCount || 0} / ${(data.results || []).length}`);
+
+  $('checkResult').innerHTML = '<div class="check-progress">准备检测...</div>';
+  $('resolveResult').textContent = $('skipResolve').checked ? '已跳过解析' : '解析候选中...';
+
+  let resolveData = null;
+  if (!$('skipResolve').checked) {
+    resolveData = inputs.length === 1 ? await api.resolve(inputs[0]) : await api.resolveBatch(inputs);
+    renderResolveResult(resolveData);
+  }
+
+  const candidates = collectResolvedTargets(resolveData, inputs);
+  if (!candidates.length) throw new Error('没有可检测候选');
+
+  const concurrency = getFrontendConcurrency();
+  const useBackupOnly = $('useBackup').checked;
+  lastCheckResults = [];
+  renderCheckResults([]);
+  $('checkResult').innerHTML = '<div class="check-progress">检测中：0 / ' + candidates.length + '，并发 ' + concurrency + '</div>';
+
+  const results = await runWithConcurrency(
+    candidates,
+    concurrency,
+    (candidate) => checkOneCandidate(candidate, useBackupOnly),
+    (done, total, result) => {
+      lastCheckResults.push(result);
+      renderCheckResults(lastCheckResults);
+      $('checkResult').insertAdjacentHTML('afterbegin', '<div class="check-progress">检测中：' + done + ' / ' + total + '，可用 ' + lastCheckResults.filter(r => r.success).length + '</div>');
+    }
+  );
+
+  renderCheckResults(results);
+  const successCount = results.filter(r => r.success === true).length;
+  toast('检测完成：可用 ' + successCount + ' / ' + results.length);
 }
 
 async function copyGoodResults() {
