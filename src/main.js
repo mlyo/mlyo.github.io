@@ -1,110 +1,77 @@
-import { api, getApiBase, getAuthKey, saveConfig, clearConfig } from './api.js';
+import { api } from './api.js';
 
-const $ = id => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
+const pretty = (data) => typeof data === 'string' ? data : JSON.stringify(data, null, 2);
 
-function log(message, type = 'info') {
-  const line = `[${new Date().toLocaleTimeString()}] ${type.toUpperCase()} ${message}`;
-  $('logs').textContent = `${line}\n${$('logs').textContent}`.slice(0, 12000);
-}
-
-function showJson(el, data) {
-  el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+function toast(message, type = 'ok') {
+  const el = $('toast');
+  el.textContent = message;
+  el.className = `toast show ${type}`;
+  setTimeout(() => { el.className = 'toast'; }, 2400);
 }
 
 async function run(label, fn) {
   try {
-    log(`${label}...`);
-    const data = await fn();
-    log(`${label}成功`, 'success');
-    return data;
+    const result = await fn();
+    if (label) toast(label);
+    return result;
   } catch (e) {
-    log(`${label}失败：${e.message}`, 'error');
-    alert(e.message);
+    toast(e.message || '操作失败', 'err');
     throw e;
   }
 }
 
-function initConfig() {
-  $('apiBase').value = getApiBase();
-  $('authKey').value = getAuthKey();
-}
+const poolKey = () => $('poolKey').value.trim() || 'pool';
 
-$('btnSaveConfig').addEventListener('click', () => {
-  saveConfig($('apiBase').value, $('authKey').value);
-  log('配置已保存', 'success');
-});
-
-$('btnClearConfig').addEventListener('click', () => {
-  clearConfig();
-  initConfig();
-  log('配置已清除');
-});
-
-$('btnPing').addEventListener('click', async () => {
-  const data = await run('测试后端', () => api.ping());
-  showJson($('checkResult'), data);
-});
-
-$('btnLoadPool').addEventListener('click', async () => {
-  const poolKey = $('poolKey').value.trim() || 'pool';
-  const data = await run('加载 IP 池', () => api.getPool(poolKey));
+async function loadPool(key = poolKey()) {
+  const data = await run('', () => api.getPool(key));
   $('poolText').value = data.pool || '';
   $('poolCount').textContent = data.count ?? 0;
-});
-
-async function savePool(mode) {
-  const poolKey = $('poolKey').value.trim() || 'pool';
-  const pool = $('poolText').value;
-  const data = await run(`保存 IP 池：${mode}`, () => api.savePool({ poolKey, pool, mode }));
-  $('poolCount').textContent = data.count ?? '-';
-  showJson($('checkResult'), data);
+  toast(`已加载 ${key}`);
 }
 
-$('btnAppendPool').addEventListener('click', () => savePool('append'));
-$('btnReplacePool').addEventListener('click', () => {
-  if (confirm('确定覆盖当前 IP 池？原内容会被替换。')) savePool('replace');
-});
-$('btnRemovePool').addEventListener('click', () => savePool('remove'));
+async function savePool(mode) {
+  const data = await run('保存成功', () => api.savePool({ poolKey: poolKey(), pool: $('poolText').value, mode }));
+  $('poolCount').textContent = data.count ?? '-';
+}
 
-$('btnCheckIp').addEventListener('click', async () => {
-  const ip = $('checkIp').value.trim();
-  if (!ip) return alert('请填写 IP:PORT');
-  const data = await run('检测 ProxyIP', () => api.checkIP(ip));
-  showJson($('checkResult'), data);
-});
-
-$('btnMaintain').addEventListener('click', async () => {
-  if (!confirm('确定开始手动维护？')) return;
-  const data = await run('手动维护', () => api.maintain());
+async function maintain() {
+  $('logs').textContent = '维护中...';
+  const data = await run('维护完成', () => api.maintain());
   const logs = data.allLogs || data.reports?.flatMap(r => r.logs || []) || [];
-  $('maintainLogs').textContent = logs.join('\n') || JSON.stringify(data, null, 2);
-});
+  $('logs').textContent = logs.length ? logs.join('\n') : pretty(data);
+}
 
-$('btnStatus').addEventListener('click', async () => {
-  const target = $('targetIndex').value || '0';
-  const data = await run('查看域名状态', () => api.currentStatus(target));
-  showJson($('statusResult'), data);
-});
-
-$('btnLookup').addEventListener('click', async () => {
-  const domain = $('lookupDomain').value.trim();
-  if (!domain) return alert('请填写域名');
-  const data = await run('查询域名解析', () => api.lookupDomain(domain));
-  showJson($('lookupResult'), data);
-});
-
-$('btnLoadMapping').addEventListener('click', async () => {
-  const data = await run('加载 IP 池映射', () => api.getDomainPoolMapping());
+async function loadMapping() {
+  const data = await run('映射已加载', () => api.getDomainPoolMapping());
   $('mappingText').value = JSON.stringify(data.mapping || {}, null, 2);
-});
+}
 
-$('btnSaveMapping').addEventListener('click', async () => {
+async function saveMapping() {
   let mapping;
   try { mapping = JSON.parse($('mappingText').value || '{}'); }
-  catch { return alert('映射内容不是有效 JSON'); }
-  const data = await run('保存 IP 池映射', () => api.saveDomainPoolMapping(mapping));
-  showJson($('statusResult'), data);
-});
+  catch { throw new Error('映射不是有效 JSON'); }
+  await run('映射已保存', () => api.saveDomainPoolMapping(mapping));
+}
 
-initConfig();
-log('前端已就绪');
+function bind() {
+  $('btnLogout').onclick = () => api.logout();
+  $('btnRefreshAll').onclick = () => loadPool().catch(() => {});
+  $('btnLoadPool').onclick = () => loadPool().catch(() => {});
+  $('btnAppend').onclick = () => savePool('append').catch(() => {});
+  $('btnReplace').onclick = () => savePool('replace').catch(() => {});
+  $('btnRemove').onclick = () => savePool('remove').catch(() => {});
+  $('btnLoadTrash').onclick = () => { $('poolKey').value = 'pool_trash'; loadPool('pool_trash').catch(() => {}); };
+  $('btnClearTrash').onclick = async () => { if (!confirm('确定清空垃圾桶？')) return; await run('垃圾桶已清空', () => api.clearTrash()).catch(() => {}); if (poolKey() === 'pool_trash') loadPool('pool_trash').catch(() => {}); };
+  $('btnCreatePool').onclick = async () => { await run('IP 池已创建', () => api.createPool(poolKey())).catch(() => {}); loadPool().catch(() => {}); };
+  $('btnDeletePool').onclick = async () => { if (!confirm(`确定删除 ${poolKey()}？`)) return; await run('IP 池已删除', () => api.deletePool(poolKey())).catch(() => {}); };
+  $('btnCheckIp').onclick = async () => { $('checkResult').textContent = '检测中...'; const data = await run('', () => api.checkIP($('checkIp').value.trim(), $('useBackup').checked)).catch(e => ({ error: e.message })); $('checkResult').textContent = pretty(data); };
+  $('btnStatus').onclick = async () => { $('statusResult').textContent = '查询中...'; const data = await run('', () => api.currentStatus($('targetIndex').value.trim() || 0)).catch(e => ({ error: e.message })); $('statusResult').textContent = pretty(data); };
+  $('btnLookup').onclick = async () => { $('lookupResult').textContent = '查询中...'; const data = await run('', () => api.lookupDomain($('lookupDomain').value.trim())).catch(e => ({ error: e.message })); $('lookupResult').textContent = pretty(data); };
+  $('btnMaintain').onclick = () => maintain().catch(() => {});
+  $('btnLoadMapping').onclick = () => loadMapping().catch(() => {});
+  $('btnSaveMapping').onclick = () => saveMapping().catch(e => toast(e.message, 'err'));
+}
+
+bind();
+loadPool().catch(() => {});
