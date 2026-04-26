@@ -4,6 +4,10 @@ const $ = (id) => document.getElementById(id);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const pretty = (data) => typeof data === 'string' ? data : JSON.stringify(data, null, 2);
 let lastCheckResults = [];
+let checkRunToken = 0;
+let checkRunning = false;
+const checkFilters = { status: 'all', source: 'all', country: 'all', colo: 'all', keyword: '' };
+const checkProgress = { total: 0, done: 0, success: 0, failed: 0 };
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -88,21 +92,22 @@ async function checkOneCandidate(candidate, useBackupOnly = false) {
   }
 }
 
-async function runWithConcurrency(items, limit, worker, onProgress) {
+async function runWithConcurrency(items, limit, worker, onProgress, shouldStop = () => false) {
   const results = new Array(items.length);
   let next = 0;
   let done = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
+    while (next < items.length && !shouldStop()) {
       const index = next++;
       try { results[index] = await worker(items[index], index); }
-      catch (e) { results[index] = { candidate: items[index], success: false, message: e.message || '检测失败' }; }
+      catch (e) { results[index] = { candidate: items[index], success: false, source: 'main', responseTime: 0, portRemote: parsePortFromTarget(items[index]), message: e.message || '检测失败' }; }
+      if (shouldStop()) break;
       done += 1;
       onProgress?.(done, items.length, results[index]);
     }
   });
   await Promise.all(workers);
-  return results;
+  return results.filter(Boolean);
 }
 
 function collectResolvedTargets(resolveData, fallbackInputs) {
@@ -291,13 +296,123 @@ function targetLineFromResult(r) {
   return meta ? `${target}#${meta}` : target;
 }
 
-function renderCheckResults(results) {
-  lastCheckResults = results || [];
+function resetCheckProgress(total) {
+  checkProgress.total = total;
+  checkProgress.done = 0;
+  checkProgress.success = 0;
+  checkProgress.failed = 0;
+  $('checkProgressBox')?.classList.remove('hidden');
+  renderCheckProgress();
+}
+
+function updateCheckProgress(result) {
+  checkProgress.done += 1;
+  if (result?.success === true) checkProgress.success += 1;
+  else checkProgress.failed += 1;
+  renderCheckProgress();
+}
+
+function renderCheckProgress(label = '检测进度') {
+  const percent = checkProgress.total ? Math.round((checkProgress.done / checkProgress.total) * 100) : 0;
+  if ($('checkProgressLabel')) $('checkProgressLabel').textContent = label;
+  if ($('checkProgressText')) $('checkProgressText').textContent = `${checkProgress.done} / ${checkProgress.total}`;
+  if ($('checkProgressBar')) $('checkProgressBar').style.width = percent + '%';
+  if ($('checkProgressStats')) $('checkProgressStats').textContent = `成功 ${checkProgress.success} · 失败 ${checkProgress.failed} · ${percent}%`;
+}
+
+function setCheckRunning(running) {
+  checkRunning = running;
+  if ($('btnCheckTargets')) $('btnCheckTargets').disabled = running;
+  if ($('btnResolveTargets')) $('btnResolveTargets').disabled = running;
+  if ($('btnStopCheck')) $('btnStopCheck').disabled = !running;
+}
+
+function stopCheckTargets() {
+  if (!checkRunning) return;
+  checkRunToken += 1;
+  setCheckRunning(false);
+  renderCheckProgress('已停止');
+  toast('已停止检测，未开始的任务已取消');
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function renderFilterOptions() {
+  const countrySel = $('filterCountry');
+  const coloSel = $('filterColo');
+  if (!countrySel || !coloSel) return;
+  const countryCurrent = checkFilters.country;
+  const coloCurrent = checkFilters.colo;
+  const countries = uniqueSorted(lastCheckResults.map(r => r.country));
+  const colos = uniqueSorted(lastCheckResults.map(r => r.colo));
+  countrySel.innerHTML = '<option value="all">全部国家</option>' + countries.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  coloSel.innerHTML = '<option value="all">全部机房</option>' + colos.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  countrySel.value = countries.includes(countryCurrent) ? countryCurrent : 'all';
+  coloSel.value = colos.includes(coloCurrent) ? coloCurrent : 'all';
+  checkFilters.country = countrySel.value;
+  checkFilters.colo = coloSel.value;
+}
+
+function getFilteredCheckResults() {
+  return lastCheckResults.filter(item => {
+    if (checkFilters.status === 'success' && item.success !== true) return false;
+    if (checkFilters.status === 'failed' && item.success === true) return false;
+    if (checkFilters.source !== 'all' && item.source !== checkFilters.source) return false;
+    if (checkFilters.country !== 'all' && item.country !== checkFilters.country) return false;
+    if (checkFilters.colo !== 'all' && item.colo !== checkFilters.colo) return false;
+    const keyword = String(checkFilters.keyword || '').trim().toLowerCase();
+    if (keyword) {
+      const haystack = [item.candidate, item.proxyIP, item.ip, item.ipType, item.colo, item.country, item.region, item.city, item.asn, item.asOrganization, item.message, item.source].join(' ').toLowerCase();
+      if (!haystack.includes(keyword)) return false;
+    }
+    return true;
+  });
+}
+
+function updateFilterSummary(filtered) {
+  const total = lastCheckResults.length;
+  const success = lastCheckResults.filter(r => r.success === true).length;
+  const failed = total - success;
+  if ($('checkFilterSummary')) $('checkFilterSummary').textContent = `共 ${total} 条 · 当前显示 ${filtered.length} 条 · 可用 ${success} · 不可用 ${failed}`;
+}
+
+function setStatusFilter(status) {
+  checkFilters.status = status;
+  $('[data-filter-status]').forEach(btn => btn.classList.toggle('active', btn.dataset.filterStatus === status));
+  renderCheckResults(lastCheckResults, { keepFilters: true });
+}
+
+function clearCheckFilters() {
+  checkFilters.status = 'all';
+  checkFilters.source = 'all';
+  checkFilters.country = 'all';
+  checkFilters.colo = 'all';
+  checkFilters.keyword = '';
+  $('[data-filter-status]').forEach(btn => btn.classList.toggle('active', btn.dataset.filterStatus === 'all'));
+  if ($('filterSource')) $('filterSource').value = 'all';
+  if ($('filterCountry')) $('filterCountry').value = 'all';
+  if ($('filterColo')) $('filterColo').value = 'all';
+  if ($('filterKeyword')) $('filterKeyword').value = '';
+  renderCheckResults(lastCheckResults, { keepFilters: true });
+}
+
+function renderCheckResults(results, options = {}) {
+  if (!options.keepResults) lastCheckResults = results || [];
+  if (!options.keepFilters) renderFilterOptions();
+  if ($('checkFilters')) $('checkFilters').classList.toggle('hidden', !lastCheckResults.length);
+  const visible = getFilteredCheckResults();
+  updateFilterSummary(visible);
   if (!lastCheckResults.length) {
     $('checkResult').innerHTML = '<div class="muted">没有检测结果</div>';
     return;
   }
-  $('checkResult').innerHTML = lastCheckResults.map(r => {
+  if (!visible.length) {
+    $('checkResult').innerHTML = '<div class="muted">没有符合筛选条件的结果</div>';
+    return;
+  }
+  $('checkResult').innerHTML = visible.map(r => {
     const ok = r.success === true;
     const location = [r.country, r.region, r.city].filter(Boolean).join(' / ') || '-';
     const asn = [r.asn ? `AS${r.asn}` : '', r.asOrganization].filter(Boolean).join(' · ') || '-';
@@ -330,54 +445,92 @@ async function checkTargets() {
   const inputs = getCheckInputs();
   if (!inputs.length) throw new Error('请输入检测目标');
 
-  $('checkResult').innerHTML = '<div class="check-progress">准备检测...</div>';
+  const runId = ++checkRunToken;
+  setCheckRunning(true);
+  lastCheckResults = [];
+  clearCheckFilters();
+  renderCheckResults([]);
+  $('checkResult').innerHTML = '<div class="muted">准备检测...</div>';
   $('resolveResult').textContent = $('skipResolve').checked ? '已跳过解析' : '解析候选中...';
 
-  let resolveData = null;
-  if (!$('skipResolve').checked) {
-    resolveData = inputs.length === 1 ? await api.resolve(inputs[0]) : await api.resolveBatch(inputs);
-    renderResolveResult(resolveData);
-  }
-
-  const candidates = collectResolvedTargets(resolveData, inputs);
-  if (!candidates.length) throw new Error('没有可检测候选');
-
-  const concurrency = getFrontendConcurrency();
-  const useBackupOnly = $('useBackup').checked;
-  lastCheckResults = [];
-  renderCheckResults([]);
-  $('checkResult').innerHTML = '<div class="check-progress">检测中：0 / ' + candidates.length + '，并发 ' + concurrency + '</div>';
-
-  const results = await runWithConcurrency(
-    candidates,
-    concurrency,
-    (candidate) => checkOneCandidate(candidate, useBackupOnly),
-    (done, total, result) => {
-      lastCheckResults.push(result);
-      renderCheckResults(lastCheckResults);
-      $('checkResult').insertAdjacentHTML('afterbegin', '<div class="check-progress">检测中：' + done + ' / ' + total + '，可用 ' + lastCheckResults.filter(r => r.success).length + '</div>');
+  try {
+    let resolveData = null;
+    if (!$('skipResolve').checked) {
+      resolveData = inputs.length === 1 ? await api.resolve(inputs[0]) : await api.resolveBatch(inputs);
+      if (runId !== checkRunToken) return;
+      renderResolveResult(resolveData);
     }
-  );
 
-  renderCheckResults(results);
-  const successCount = results.filter(r => r.success === true).length;
-  toast('检测完成：可用 ' + successCount + ' / ' + results.length);
+    const candidates = collectResolvedTargets(resolveData, inputs);
+    if (!candidates.length) throw new Error('没有可检测候选');
+
+    const concurrency = getFrontendConcurrency();
+    const useBackupOnly = $('useBackup').checked;
+    resetCheckProgress(candidates.length);
+    renderCheckProgress('检测中');
+
+    const results = await runWithConcurrency(
+      candidates,
+      concurrency,
+      (candidate) => checkOneCandidate(candidate, useBackupOnly),
+      (done, total, result) => {
+        if (runId !== checkRunToken) return;
+        lastCheckResults.push(result);
+        updateCheckProgress(result);
+        renderCheckResults(lastCheckResults, { keepFilters: true });
+      },
+      () => runId !== checkRunToken
+    );
+
+    if (runId !== checkRunToken) return;
+    renderCheckResults(results);
+    renderCheckProgress('检测完成');
+    const successCount = results.filter(r => r.success === true).length;
+    toast('检测完成：可用 ' + successCount + ' / ' + results.length);
+  } finally {
+    if (runId === checkRunToken) setCheckRunning(false);
+  }
+}
+
+function successfulResults(results = lastCheckResults) {
+  return results.filter(r => r.success === true);
 }
 
 async function copyGoodResults() {
-  const lines = lastCheckResults.filter(r => r.success).map(targetLineFromResult);
-  if (!lines.length) throw new Error('没有可复制的成功项');
-  await navigator.clipboard.writeText(lines.join('\n'));
-  toast(`已复制 ${lines.length} 条`);
+  const lines = successfulResults(lastCheckResults).map(targetLineFromResult);
+  if (!lines.length) throw new Error('没有可复制的可用项');
+  await navigator.clipboard.writeText(lines.join('
+'));
+  toast(`已复制可用项 ${lines.length} 条`);
 }
 
 async function addGoodToPool() {
-  const lines = lastCheckResults.filter(r => r.success).map(targetLineFromResult);
-  if (!lines.length) throw new Error('没有可加入的成功项');
+  const lines = successfulResults(lastCheckResults).map(targetLineFromResult);
+  if (!lines.length) throw new Error('没有可加入的可用项');
   const key = selectedPoolKey();
-  await api.savePool({ poolKey: key, pool: lines.join('\n'), mode: 'append' });
+  await api.savePool({ poolKey: key, pool: lines.join('
+'), mode: 'append' });
   await refreshPoolView(key).catch(() => {});
   toast(`已加入当前池：${lines.length} 条`);
+}
+
+async function copyFilteredResults() {
+  const visible = getFilteredCheckResults();
+  if (!visible.length) throw new Error('当前筛选没有结果');
+  const lines = visible.map(targetLineFromResult);
+  await navigator.clipboard.writeText(lines.join('
+'));
+  toast(`已复制筛选结果 ${lines.length} 条`);
+}
+
+async function addFilteredGoodToPool() {
+  const lines = successfulResults(getFilteredCheckResults()).map(targetLineFromResult);
+  if (!lines.length) throw new Error('当前筛选没有可用项');
+  const key = selectedPoolKey();
+  await api.savePool({ poolKey: key, pool: lines.join('
+'), mode: 'append' });
+  await refreshPoolView(key).catch(() => {});
+  toast(`已加入筛选可用项：${lines.length} 条`);
 }
 
 async function domainStatus() {
@@ -445,8 +598,17 @@ function bind() {
   $('btnDeletePool').onclick = async () => { const key = selectedPoolKey(); if (!confirm(`确定删除 ${key}？`)) return; await run('IP 池已删除', () => api.deletePool(key)).catch(() => {}); await refreshPools('pool').catch(() => {}); loadPool('pool').catch(() => {}); };
   $('btnResolveTargets').onclick = () => resolveTargets().catch(e => toast(e.message, 'err'));
   $('btnCheckTargets').onclick = () => checkTargets().catch(e => toast(e.message, 'err'));
+  $('btnStopCheck').onclick = () => stopCheckTargets();
   $('btnCopyGood').onclick = () => copyGoodResults().catch(e => toast(e.message, 'err'));
   $('btnAddGoodToPool').onclick = () => addGoodToPool().catch(e => toast(e.message, 'err'));
+  $('btnCopyFiltered').onclick = () => copyFilteredResults().catch(e => toast(e.message, 'err'));
+  $('btnAddFilteredToPool').onclick = () => addFilteredGoodToPool().catch(e => toast(e.message, 'err'));
+  $('[data-filter-status]').forEach(btn => btn.onclick = () => setStatusFilter(btn.dataset.filterStatus || 'all'));
+  $('filterSource').onchange = () => { checkFilters.source = $('filterSource').value; renderCheckResults(lastCheckResults, { keepFilters: true }); };
+  $('filterCountry').onchange = () => { checkFilters.country = $('filterCountry').value; renderCheckResults(lastCheckResults, { keepFilters: true }); };
+  $('filterColo').onchange = () => { checkFilters.colo = $('filterColo').value; renderCheckResults(lastCheckResults, { keepFilters: true }); };
+  $('filterKeyword').oninput = () => { checkFilters.keyword = $('filterKeyword').value; renderCheckResults(lastCheckResults, { keepFilters: true }); };
+  $('btnClearFilters').onclick = () => clearCheckFilters();
   $('btnDomainStatus').onclick = () => domainStatus().catch(e => toast(e.message, 'err'));
   $('btnStatus').onclick = async () => { $('statusResult').textContent = '查询中...'; const data = await run('', () => api.currentStatus($('targetIndex').value.trim() || 0)).catch(e => ({ error: e.message })); $('statusResult').textContent = pretty(data); };
   $('btnMaintain').onclick = () => maintain().catch(() => {});
