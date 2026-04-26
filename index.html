@@ -10,7 +10,7 @@
   <header class="topbar">
     <div>
       <h1>DDNS Pro</h1>
-      <p>独立前端管理面板 · 后端使用 Cloudflare Worker API</p>
+      <p>GitHub Pages 静态源站 · 通过 Worker /admin/ 挂载访问</p>
     </div>
     <button id="btnPing" class="secondary">测试后端</button>
   </header>
@@ -20,8 +20,8 @@
       <h2>连接配置</h2>
       <div class="grid two">
         <label>
-          <span>Worker API 地址</span>
-          <input id="apiBase" placeholder="https://your-worker.workers.dev" />
+          <span>Worker API 地址（通过 /admin/ 访问时可留空）</span>
+          <input id="apiBase" placeholder="留空则自动使用当前 Worker 域名" />
         </label>
         <label>
           <span>AUTH_KEY</span>
@@ -32,7 +32,7 @@
         <button id="btnSaveConfig">保存配置</button>
         <button id="btnClearConfig" class="ghost">清除配置</button>
       </div>
-      <p class="hint">配置只保存在当前浏览器 localStorage。不要把 Cloudflare Token、TG Token 放在前端。</p>
+      <p class="hint">通过 Worker /admin/ 访问时，API 地址默认使用当前 Worker 域名；直接访问 GitHub Pages 源站时才需要手动填写。不要把 Cloudflare Token、TG Token 放在前端。</p>
     </section>
 
     <section class="card">
