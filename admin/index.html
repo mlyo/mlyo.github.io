@@ -4,14 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DDNS Pro · DNS 维护系统</title>
-  <script src="/config.js"></script>
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
   <header class="topbar">
     <div>
       <h1>DDNS Pro</h1>
-      <p>DNS 维护 · ProxyIP 检测 · IP 池管理</p>
+      <p>DNS 维护 · ProxyIP 前端检测 · IP 池管理</p>
     </div>
     <div class="top-actions">
       <span id="healthBadge" class="badge">检查中</span>
@@ -83,10 +82,42 @@
 
       <section class="panel" id="panel-check">
         <section class="card">
-          <div class="card-title"><h2>解析与检测</h2><label><input type="checkbox" id="resolveBeforeCheck" checked /> 检测前解析域名</label></div>
-          <textarea id="checkInput" spellcheck="false" placeholder="每行一个 IP、域名、txt@域名"></textarea>
-          <div class="actions"><button id="btnResolve">只解析</button><button id="btnCheck" class="primary">检测</button></div>
-          <pre id="checkOutput" class="result"></pre>
+          <div class="card-title">
+            <div>
+              <h2>ProxyIP 前端检测</h2>
+              <p class="hint">手动 ProxyIP 检测只由浏览器前端直连执行，不回退 Worker；DNS 维护任务仍由 Worker 在后端执行。</p>
+            </div>
+            <div class="inline check-switches">
+              <label><input type="checkbox" id="resolveBeforeCheck" checked /> 检测前解析</label>
+            </div>
+          </div>
+          <div class="grid4 check-config">
+            <input id="checkConcurrency" type="number" min="1" max="30" placeholder="并发" />
+            <input id="checkTimeout" type="number" min="1000" max="60000" step="1000" placeholder="超时 ms" />
+          </div>
+          <textarea id="checkInput" spellcheck="false" placeholder="每行一个 IP、域名、txt@域名；支持 1.2.3.4:443、[IPv6]:443、example.com:443"></textarea>
+          <div class="actions">
+            <button id="btnResolve">只解析</button>
+            <button id="btnCheck" class="primary">开始检测</button>
+            <button id="btnStopCheck" class="danger" disabled>停止</button>
+            <button id="btnExportSuccess">导出可用</button>
+            <button id="btnExportAll">导出全部 JSON</button>
+          </div>
+          <div class="check-summary">
+            <article><span>候选</span><b id="checkStatTotal">0</b></article>
+            <article><span>可用</span><b id="checkStatSuccess">0</b></article>
+            <article><span>失败</span><b id="checkStatFailed">0</b></article>
+            <article><span>完成</span><b id="checkStatDone">0</b></article>
+          </div>
+          <div class="progress"><div id="checkProgressBar"></div></div>
+          <div class="filter-row">
+            <button class="filter active" data-check-filter="all">全部</button>
+            <button class="filter" data-check-filter="success">可用</button>
+            <button class="filter" data-check-filter="failed">失败</button>
+            <button class="filter" data-check-filter="direct">直连</button>
+          </div>
+          <div id="checkResults" class="check-results"></div>
+          <pre id="checkOutput" class="result small"></pre>
         </section>
       </section>
 
