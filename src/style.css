@@ -54,3 +54,24 @@ label input[type="checkbox"]{width:auto}
   .topbar h1{font-size:18px}
   .card{padding:12px}
 }
+
+
+.check-output { min-height: 96px; }
+.check-card { border: 1px solid var(--border); border-radius: 16px; padding: 14px; background: var(--panel); }
+.check-card.ok { border-color: rgba(34,197,94,.45); }
+.check-card.bad { border-color: rgba(239,68,68,.45); }
+.check-title { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
+.check-card.ok .check-title { color: #16a34a; }
+.check-card.bad .check-title { color: #dc2626; }
+.check-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.check-card dl > div { border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-width: 0; }
+.check-card dt { color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+.check-card dd { margin: 0; word-break: break-all; font-weight: 650; }
+.check-card details { margin-top: 12px; }
+@media (max-width: 640px) { .check-card dl { grid-template-columns: 1fr; } }
+
+/* ===== Final light features ===== */
+.hidden{display:none!important}
+.pool-selector select{width:170px}.pool-selector input{width:220px}
+.check-list{display:grid;gap:12px;margin-top:12px}.check-output{margin-top:12px;min-height:48px}.resolve-item{border:1px solid #263244;background:#0b1220;border-radius:12px;padding:10px;margin-top:8px}.resolve-item code{display:inline-block;margin:4px 6px 0 0;padding:3px 7px;border-radius:8px;background:#111827;border:1px solid #263244;color:#bfdbfe}.bad-text{color:#fca5a5}.muted{color:#9ca3af}.check-card{border:1px solid #263244;border-radius:16px;padding:14px;background:#111827}.check-card.ok{border-color:rgba(34,197,94,.55)}.check-card.bad{border-color:rgba(239,68,68,.55)}.check-title{font-size:17px;font-weight:800;margin-bottom:12px}.check-card.ok .check-title{color:#86efac}.check-card.bad .check-title{color:#fca5a5}.check-card dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}.check-card dl>div{border:1px solid #263244;border-radius:12px;padding:10px;min-width:0}.check-card dt{color:#9ca3af;font-size:12px;margin-bottom:5px}.check-card dd{margin:0;word-break:break-all;font-weight:650}.check-card details{margin-top:12px}
+@media(max-width:640px){.pool-selector select,.pool-selector input{width:100%}.check-card dl{grid-template-columns:1fr}}
