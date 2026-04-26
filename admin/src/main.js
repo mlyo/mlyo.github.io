@@ -176,23 +176,46 @@ function createCheckRecord(target) {
   row.dataset.source = '';
   row.innerHTML = `
     <div class="check-item-head">
-      <code>${escapeHtml(target)}</code>
+      <div class="check-target">${escapeHtml(target)}</div>
       <span class="status-badge pending">等待</span>
     </div>
-    <div class="check-item-meta">等待检测</div>
-    <pre class="check-item-raw"></pre>`;
+    <div class="check-item-meta"><span class="meta-chip soft">等待检测</span></div>`;
   $('checkResults').appendChild(row);
   record.el = row;
   return record;
 }
 
-function formatExit(exits) {
+function sourceLabel(source) {
+  if (source === 'direct') return '前端直连';
+  if (source === 'worker') return 'Worker';
+  return source || '-';
+}
+
+function stackLabel(result) {
+  const values = [];
+  if (result.supportsIpv4) values.push('IPv4');
+  if (result.supportsIpv6) values.push('IPv6');
+  return values.join('+') || '-';
+}
+
+function chip(text, extra = '') {
+  if (!text) return '';
+  return `<span class="meta-chip${extra ? ' ' + extra : ''}">${escapeHtml(text)}</span>`;
+}
+
+function formatExitChips(exits) {
   if (!Array.isArray(exits) || !exits.length) return '';
   return exits.map(e => {
+    const parts = [];
+    if (e.stack) parts.push(String(e.stack).toUpperCase());
+    if (e.ip) parts.push(e.ip);
+    if (e.colo) parts.push(e.colo);
     const loc = [e.country, e.region, e.city].filter(Boolean).join('/');
-    const net = [e.asn, e.asOrganization || e.org].filter(Boolean).join(' ');
-    return `${e.stack || 'exit'}: ${e.ip || '-'} ${e.colo ? '· ' + e.colo : ''}${loc ? ' · ' + loc : ''}${net ? ' · ' + net : ''}`;
-  }).join('\n');
+    if (loc) parts.push(loc);
+    const asnText = [e.asn ? `AS${e.asn}` : '', e.asOrganization || e.org || ''].filter(Boolean).join(' ');
+    if (asnText) parts.push(asnText);
+    return chip(parts.join(' · '), 'soft');
+  }).join('');
 }
 
 function renderCheckRecord(record, patch) {
@@ -203,7 +226,7 @@ function renderCheckRecord(record, patch) {
   row.dataset.source = record.source || '';
   const badge = row.querySelector('.status-badge');
   const meta = row.querySelector('.check-item-meta');
-  const raw = row.querySelector('.check-item-raw');
+
   if (record.status === 'success') {
     badge.className = 'status-badge ok';
     badge.textContent = record.result?.responseTime ? `${record.result.responseTime}ms` : '可用';
@@ -217,13 +240,23 @@ function renderCheckRecord(record, patch) {
     badge.className = 'status-badge pending';
     badge.textContent = '检测中';
   }
+
   const result = record.result || {};
-  const stack = [result.supportsIpv4 ? 'IPv4' : '', result.supportsIpv6 ? 'IPv6' : ''].filter(Boolean).join('+') || '-';
-  const exitText = formatExit(result.exits);
-  meta.textContent = record.status === 'success'
-    ? `来源：${record.source} · 栈：${stack}${result.colo ? ' · Colo：' + result.colo : ''}${exitText ? '\n' + exitText : ''}`
-    : `来源：${record.source || '-'} · ${record.error || result.message || '检测未通过'}`;
-  raw.textContent = result.raw ? pretty(result.raw) : '';
+  if (record.status === 'success') {
+    meta.innerHTML = [
+      chip(`来源：${sourceLabel(record.source)}`, 'ok'),
+      chip(`栈：${stackLabel(result)}`),
+      result.colo ? chip(`入口 Colo：${result.colo}`) : '',
+      formatExitChips(result.exits)
+    ].join('');
+  } else if (record.status === 'pending') {
+    meta.innerHTML = chip('检测中', 'soft');
+  } else {
+    meta.innerHTML = [
+      chip(`来源：${sourceLabel(record.source)}`, 'bad'),
+      chip(record.error || result.message || '检测未通过', 'soft')
+    ].join('');
+  }
   applyCheckFilter();
 }
 
@@ -253,13 +286,19 @@ async function resolveInputTargets(inputs) {
   if (!$('resolveBeforeCheck').checked) return uniqueTargets(inputs);
   const result = await api.resolveBatch(inputs);
   const out = [];
-  const summary = [];
+  const lines = [];
   for (const row of result.results || []) {
-    summary.push({ input: row.input, count: row.targets?.length || 0, error: row.error || '' });
-    if (Array.isArray(row.targets)) out.push(...row.targets);
+    if (row.error) {
+      lines.push(`${row.input} -> 解析失败：${row.error}`);
+      continue;
+    }
+    const targets = Array.isArray(row.targets) ? row.targets : [];
+    lines.push(`${row.input} -> ${targets.length} 个候选`);
+    out.push(...targets);
   }
-  $('checkOutput').textContent = pretty({ resolved: summary });
-  return uniqueTargets(out);
+  const unique = uniqueTargets(out);
+  $('checkOutput').textContent = `解析完成：输入 ${inputs.length} 个，候选 ${unique.length} 个\n` + lines.join('\n');
+  return unique;
 }
 
 async function runCheckOne(target, cfg, signal) {
@@ -355,12 +394,6 @@ function exportSuccess() {
   downloadText('proxyip-success.txt', text + '\n');
 }
 
-function exportAllJson() {
-  if (!checkRecords.length) { toast('没有检测结果', 'err'); return; }
-  const data = checkRecords.map(({ el, ...rest }) => rest);
-  downloadText('proxyip-results.json', JSON.stringify(data, null, 2), 'application/json;charset=UTF-8');
-}
-
 async function domainStatus() {
   const domain = $('domainInput').value.trim();
   const result = await api.domainStatus(domain);
@@ -428,7 +461,6 @@ async function init() {
   $('btnCheck').addEventListener('click', () => run($('btnCheck'), doCheck, '检测中'));
   $('btnStopCheck').addEventListener('click', stopCheck);
   $('btnExportSuccess').addEventListener('click', exportSuccess);
-  $('btnExportAll').addEventListener('click', exportAllJson);
   ['checkConcurrency', 'checkTimeout'].forEach(id => $(id).addEventListener('change', saveCheckConfig));
   $('btnDomainStatus').addEventListener('click', () => run($('btnDomainStatus'), domainStatus, '查询中'));
   $('btnLoadMapping').addEventListener('click', () => run($('btnLoadMapping'), loadMapping, '加载中'));
