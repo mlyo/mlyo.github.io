@@ -1,10 +1,17 @@
-import { api } from './api.js';
+import { api, checkProxyDirect, getCheckConfig } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const pretty = (value) => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 let currentPool = 'pool';
 let remotePreviewText = '';
+let checkRun = null;
+let checkRecords = [];
+let activeCheckFilter = 'all';
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+}
 
 function toast(message, type = 'ok') {
   const el = $('toast');
@@ -38,7 +45,9 @@ function switchPanel(name) {
 }
 
 function getPoolKeyInput() {
-  return $('customPoolKey').value.trim() || $('poolSelect').value || currentPool || 'pool';
+  const raw = $('customPoolKey').value.trim() || $('poolSelect').value || currentPool || 'pool';
+  if (raw === 'pool' || raw === 'pool_trash' || raw.startsWith('pool_')) return raw;
+  return 'pool_' + raw;
 }
 
 function normalizeLocalPoolText(text) {
@@ -51,7 +60,7 @@ function normalizeLocalPoolText(text) {
     const target = main.trim();
     if (!target || seen.has(target)) continue;
     seen.add(target);
-    out.push(commentParts.length ? `${target} #${commentParts.join('#').trim()}` : target);
+    out.push(commentParts.length ? `${target} # ${commentParts.join('#').trim()}` : target);
   }
   return out.join('\n');
 }
@@ -68,12 +77,12 @@ async function loadConfig() {
   const cfg = await api.config();
   $('versionText').textContent = cfg.version;
   $('targetCount').textContent = cfg.targets.length;
-  $('targetsBody').innerHTML = cfg.targets.map(t => `<tr><td>${t.mode}</td><td><code>${t.domain}</code></td><td>${t.port}</td><td>${t.minActive}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">未配置 CF_DOMAIN</td></tr>';
+  $('targetsBody').innerHTML = cfg.targets.map(t => `<tr><td>${t.mode}</td><td><code>${escapeHtml(t.domain)}</code></td><td>${t.port}</td><td>${t.minActive}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">未配置 CF_DOMAIN</td></tr>';
 }
 
 async function loadPools() {
   const { pools } = await api.pools();
-  $('poolSelect').innerHTML = pools.map(p => `<option value="${p}">${p}</option>`).join('');
+  $('poolSelect').innerHTML = pools.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
   if (!pools.includes(currentPool)) currentPool = 'pool';
   $('poolSelect').value = currentPool;
 }
@@ -113,13 +122,243 @@ function readTargets(textareaId) {
 async function doResolve() {
   const targets = readTargets('checkInput');
   const result = await api.resolveBatch(targets);
-  $('checkOutput').textContent = pretty(result);
+  const lines = [];
+  for (const row of result.results || []) {
+    lines.push(`# ${row.input}`);
+    if (row.error) lines.push(`# ERROR: ${row.error}`);
+    else lines.push(...(row.targets || []));
+  }
+  $('checkOutput').textContent = lines.join('\n') || pretty(result);
+}
+
+function initCheckConfig() {
+  const cfg = getCheckConfig();
+  $('checkConcurrency').value = localStorage.getItem('checkConcurrency') || String(cfg.concurrency);
+  $('checkTimeout').value = localStorage.getItem('checkTimeout') || String(cfg.timeout);
+}
+
+function saveCheckConfig() {
+  localStorage.setItem('checkConcurrency', $('checkConcurrency').value.trim());
+  localStorage.setItem('checkTimeout', $('checkTimeout').value.trim());
+}
+
+function getRuntimeCheckConfig() {
+  return {
+    publicCheckApi: getCheckConfig().publicCheckApi,
+    concurrency: Math.max(1, Math.min(30, Number($('checkConcurrency').value || 8))),
+    timeout: Math.max(1000, Math.min(60000, Number($('checkTimeout').value || 30000)))
+  };
+}
+
+function resetCheckUi(total = 0) {
+  checkRecords = [];
+  activeCheckFilter = 'all';
+  $$('.filter').forEach(btn => btn.classList.toggle('active', btn.dataset.checkFilter === 'all'));
+  $('checkResults').innerHTML = '';
+  $('checkOutput').textContent = '';
+  updateCheckStats(total, 0, 0, 0);
+}
+
+function updateCheckStats(total, done, success, failed) {
+  $('checkStatTotal').textContent = total;
+  $('checkStatDone').textContent = done;
+  $('checkStatSuccess').textContent = success;
+  $('checkStatFailed').textContent = failed;
+  $('checkProgressBar').style.width = total ? `${Math.round(done / total * 100)}%` : '0%';
+}
+
+function createCheckRecord(target) {
+  const record = { target, status: 'pending', source: '', result: null, error: '' };
+  checkRecords.push(record);
+  const row = document.createElement('article');
+  row.className = 'check-item pending';
+  row.dataset.status = 'pending';
+  row.dataset.source = '';
+  row.innerHTML = `
+    <div class="check-item-head">
+      <code>${escapeHtml(target)}</code>
+      <span class="status-badge pending">等待</span>
+    </div>
+    <div class="check-item-meta">等待检测</div>
+    <pre class="check-item-raw"></pre>`;
+  $('checkResults').appendChild(row);
+  record.el = row;
+  return record;
+}
+
+function formatExit(exits) {
+  if (!Array.isArray(exits) || !exits.length) return '';
+  return exits.map(e => {
+    const loc = [e.country, e.region, e.city].filter(Boolean).join('/');
+    const net = [e.asn, e.asOrganization || e.org].filter(Boolean).join(' ');
+    return `${e.stack || 'exit'}: ${e.ip || '-'} ${e.colo ? '· ' + e.colo : ''}${loc ? ' · ' + loc : ''}${net ? ' · ' + net : ''}`;
+  }).join('\n');
+}
+
+function renderCheckRecord(record, patch) {
+  Object.assign(record, patch);
+  const row = record.el;
+  row.className = `check-item ${record.status}`;
+  row.dataset.status = record.status;
+  row.dataset.source = record.source || '';
+  const badge = row.querySelector('.status-badge');
+  const meta = row.querySelector('.check-item-meta');
+  const raw = row.querySelector('.check-item-raw');
+  if (record.status === 'success') {
+    badge.className = 'status-badge ok';
+    badge.textContent = record.result?.responseTime ? `${record.result.responseTime}ms` : '可用';
+  } else if (record.status === 'failed') {
+    badge.className = 'status-badge bad';
+    badge.textContent = '失败';
+  } else if (record.status === 'stopped') {
+    badge.className = 'status-badge bad';
+    badge.textContent = '已停止';
+  } else {
+    badge.className = 'status-badge pending';
+    badge.textContent = '检测中';
+  }
+  const result = record.result || {};
+  const stack = [result.supportsIpv4 ? 'IPv4' : '', result.supportsIpv6 ? 'IPv6' : ''].filter(Boolean).join('+') || '-';
+  const exitText = formatExit(result.exits);
+  meta.textContent = record.status === 'success'
+    ? `来源：${record.source} · 栈：${stack}${result.colo ? ' · Colo：' + result.colo : ''}${exitText ? '\n' + exitText : ''}`
+    : `来源：${record.source || '-'} · ${record.error || result.message || '检测未通过'}`;
+  raw.textContent = result.raw ? pretty(result.raw) : '';
+  applyCheckFilter();
+}
+
+function applyCheckFilter() {
+  for (const r of checkRecords) {
+    const show = activeCheckFilter === 'all'
+      || (activeCheckFilter === 'success' && r.status === 'success')
+      || (activeCheckFilter === 'failed' && (r.status === 'failed' || r.status === 'stopped'))
+      || (activeCheckFilter === 'direct' && r.source === 'direct')
+      || (activeCheckFilter === 'worker' && r.source === 'worker');
+    if (r.el) r.el.hidden = !show;
+  }
+}
+
+function uniqueTargets(values) {
+  const seen = new Set();
+  const out = [];
+  for (const v of values) {
+    const t = String(v || '').trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t); out.push(t);
+  }
+  return out;
+}
+
+async function resolveInputTargets(inputs) {
+  if (!$('resolveBeforeCheck').checked) return uniqueTargets(inputs);
+  const result = await api.resolveBatch(inputs);
+  const out = [];
+  const summary = [];
+  for (const row of result.results || []) {
+    summary.push({ input: row.input, count: row.targets?.length || 0, error: row.error || '' });
+    if (Array.isArray(row.targets)) out.push(...row.targets);
+  }
+  $('checkOutput').textContent = pretty({ resolved: summary });
+  return uniqueTargets(out);
+}
+
+async function runCheckOne(target, cfg, signal) {
+  return await checkProxyDirect(target, { publicCheckApi: cfg.publicCheckApi, timeout: cfg.timeout, signal });
+}
+
+async function runQueue(items, concurrency, worker) {
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const idx = cursor++;
+      await worker(items[idx], idx);
+    }
+  });
+  await Promise.all(runners);
 }
 
 async function doCheck() {
-  const targets = readTargets('checkInput');
-  const result = await api.checkBatch({ targets, resolve: $('resolveBeforeCheck').checked });
-  $('checkOutput').textContent = pretty(result);
+  const inputs = readTargets('checkInput');
+  if (!inputs.length) { toast('请输入检测目标', 'err'); return; }
+  saveCheckConfig();
+  const cfg = getRuntimeCheckConfig();
+  if (!cfg.publicCheckApi) { toast('缺少前端检测接口', 'err'); return; }
+  const candidates = await resolveInputTargets(inputs);
+  if (!candidates.length) { toast('没有可检测候选', 'err'); return; }
+  resetCheckUi(candidates.length);
+  const controller = new AbortController();
+  checkRun = { controller, stopped: false };
+  $('btnStopCheck').disabled = false;
+  candidates.forEach(createCheckRecord);
+  let done = 0, success = 0, failed = 0;
+  const refreshStats = () => updateCheckStats(candidates.length, done, success, failed);
+  try {
+    await runQueue(checkRecords, cfg.concurrency, async (record) => {
+      if (controller.signal.aborted) {
+        renderCheckRecord(record, { status: 'stopped', error: '已停止' });
+        return;
+      }
+      renderCheckRecord(record, { status: 'pending' });
+      try {
+        const result = await runCheckOne(record.target, cfg, controller.signal);
+        if (result.success) {
+          success++;
+          renderCheckRecord(record, { status: 'success', source: result.source, result });
+        } else {
+          failed++;
+          renderCheckRecord(record, { status: 'failed', source: result.source, result, error: result.message || '检测未通过' });
+        }
+      } catch (e) {
+        if (controller.signal.aborted) {
+          renderCheckRecord(record, { status: 'stopped', source: '', error: '已停止' });
+        } else {
+          failed++;
+          renderCheckRecord(record, { status: 'failed', source: '', error: e.message || '检测失败' });
+        }
+      } finally {
+        done++;
+        refreshStats();
+      }
+    });
+    toast(`检测完成：可用 ${success}，失败 ${failed}`);
+  } finally {
+    $('btnStopCheck').disabled = true;
+    checkRun = null;
+  }
+}
+
+function stopCheck() {
+  if (!checkRun) return;
+  checkRun.stopped = true;
+  checkRun.controller.abort();
+  for (const record of checkRecords) {
+    if (record.status === 'pending') renderCheckRecord(record, { status: 'stopped', error: '已手动停止' });
+  }
+  toast('已停止检测');
+}
+
+function downloadText(filename, text, type = 'text/plain;charset=UTF-8') {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportSuccess() {
+  const text = checkRecords.filter(r => r.status === 'success').map(r => r.target).join('\n');
+  if (!text) { toast('没有可导出的可用目标', 'err'); return; }
+  downloadText('proxyip-success.txt', text + '\n');
+}
+
+function exportAllJson() {
+  if (!checkRecords.length) { toast('没有检测结果', 'err'); return; }
+  const data = checkRecords.map(({ el, ...rest }) => rest);
+  downloadText('proxyip-results.json', JSON.stringify(data, null, 2), 'application/json;charset=UTF-8');
 }
 
 async function domainStatus() {
@@ -163,7 +402,13 @@ async function doMaintain() {
 }
 
 async function init() {
+  initCheckConfig();
   $$('.nav').forEach(btn => btn.addEventListener('click', () => switchPanel(btn.dataset.panel)));
+  $$('.filter').forEach(btn => btn.addEventListener('click', () => {
+    activeCheckFilter = btn.dataset.checkFilter;
+    $$('.filter').forEach(b => b.classList.toggle('active', b === btn));
+    applyCheckFilter();
+  }));
   $('btnLogout').addEventListener('click', api.logout);
   $('btnRefreshAll').addEventListener('click', () => boot());
   $('btnLoadConfig').addEventListener('click', () => run($('btnLoadConfig'), loadConfig, '读取中'));
@@ -175,12 +420,16 @@ async function init() {
   $('btnRemove').addEventListener('click', () => run($('btnRemove'), () => savePool('remove'), '删除中'));
   $('btnLoadTrash').addEventListener('click', () => loadPool('pool_trash'));
   $('btnClearTrash').addEventListener('click', async () => { if (confirm('确定清空垃圾桶？')) await run($('btnClearTrash'), async () => { await api.clearTrash(); await loadPool('pool_trash'); toast('垃圾桶已清空'); }, '清空中'); });
-  $('btnCreatePool').addEventListener('click', () => run($('btnCreatePool'), async () => { await api.createPool(getPoolKeyInput()); await loadPools(); await loadPool(getPoolKeyInput()); toast('池已创建'); }, '创建中'));
+  $('btnCreatePool').addEventListener('click', () => run($('btnCreatePool'), async () => { const key = getPoolKeyInput(); await api.createPool(key); await loadPools(); await loadPool(key); toast('池已创建'); }, '创建中'));
   $('btnDeletePool').addEventListener('click', () => { const key = getPoolKeyInput(); if (confirm(`确定删除 ${key}？`)) run($('btnDeletePool'), async () => { await api.deletePool(key); currentPool = 'pool'; await loadPools(); await loadPool('pool'); toast('池已删除'); }, '删除中'); });
   $('btnPreviewRemote').addEventListener('click', () => run($('btnPreviewRemote'), previewRemote, '加载中'));
   $('btnImportRemote').addEventListener('click', () => run($('btnImportRemote'), async () => { if (!remotePreviewText) await previewRemote(); $('poolText').value = remotePreviewText; await savePool('append'); }, '导入中'));
   $('btnResolve').addEventListener('click', () => run($('btnResolve'), doResolve, '解析中'));
   $('btnCheck').addEventListener('click', () => run($('btnCheck'), doCheck, '检测中'));
+  $('btnStopCheck').addEventListener('click', stopCheck);
+  $('btnExportSuccess').addEventListener('click', exportSuccess);
+  $('btnExportAll').addEventListener('click', exportAllJson);
+  ['checkConcurrency', 'checkTimeout'].forEach(id => $(id).addEventListener('change', saveCheckConfig));
   $('btnDomainStatus').addEventListener('click', () => run($('btnDomainStatus'), domainStatus, '查询中'));
   $('btnLoadMapping').addEventListener('click', () => run($('btnLoadMapping'), loadMapping, '加载中'));
   $('btnSaveMapping').addEventListener('click', () => run($('btnSaveMapping'), saveMapping, '保存中'));
