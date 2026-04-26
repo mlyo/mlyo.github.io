@@ -653,3 +653,178 @@ tr:last-child td { border-bottom: 0; }
   .nav { min-width: 62px; padding-inline: 7px; font-size: 11px; }
   .actions, .pool-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+
+/* v26: premium mobile operations polish */
+.nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.055);
+  color: #dbeafe;
+  font-size: 12px;
+}
+.nav.active .nav-icon {
+  background: rgba(255,255,255,.18);
+  color: #fff;
+}
+
+.fold-card {
+  padding: 0;
+}
+.fold-card > summary,
+.inner-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+}
+.fold-card > summary::-webkit-details-marker,
+.inner-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fold-card > summary span,
+.inner-fold > summary span {
+  font-weight: 700;
+  color: var(--text);
+}
+.fold-card > summary small,
+.inner-fold > summary small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.fold-card > summary::after,
+.inner-fold > summary::after {
+  content: "▾";
+  color: var(--muted);
+  transition: transform .16s ease;
+}
+.fold-card:not([open]) > summary::after,
+.inner-fold:not([open]) > summary::after {
+  transform: rotate(-90deg);
+}
+.fold-body {
+  padding: 0 13px 13px;
+}
+.inner-fold {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(3,8,20,.26);
+  overflow: hidden;
+}
+.inner-fold .result {
+  margin: 0 10px 10px;
+}
+
+.domain-result {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.domain-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(3,8,20,.34);
+  padding: 10px;
+}
+.domain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.domain-head span {
+  border: 1px solid rgba(147,197,253,.24);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #bfdbfe;
+  background: rgba(59,130,246,.14);
+  font-size: 11px;
+}
+.domain-grid {
+  display: grid;
+  gap: 7px;
+}
+.domain-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.domain-row b {
+  color: var(--muted);
+  font-size: 11px;
+  padding-top: 4px;
+}
+.domain-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .nav {
+    flex-direction: column;
+    gap: 2px;
+    min-width: 54px;
+    min-height: 42px;
+    padding: 5px 7px;
+  }
+  .nav-icon {
+    width: 17px;
+    height: 17px;
+    font-size: 11px;
+    background: transparent;
+  }
+  .nav-label {
+    font-size: 10px;
+    line-height: 1.1;
+  }
+  .sidebar {
+    justify-content: space-around;
+    padding: 5px 6px calc(5px + env(safe-area-inset-bottom));
+  }
+  .fold-card > summary,
+  .inner-fold > summary {
+    padding: 9px 11px;
+  }
+  .fold-body {
+    padding: 0 11px 11px;
+  }
+  .domain-row {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 6px;
+  }
+  .domain-card {
+    padding: 9px;
+  }
+  .check-item-meta {
+    gap: 5px;
+  }
+  .check-item-meta .meta-chip:nth-child(n+4) {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav {
+    min-width: 50px;
+  }
+  .nav-label {
+    font-size: 9.5px;
+  }
+}
