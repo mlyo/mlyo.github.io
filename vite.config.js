@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
-// 如果仓库名是 dnsproxyip-manager，GitHub Pages 项目站点需要这个 base。
-// 如果你部署到用户名根站点 username.github.io，可改成 base: '/'
+// 关键：使用相对路径，保证 GitHub Pages 作为静态源站，
+// 同时也能被 Worker 挂载到 /admin/ 下正常加载资源。
 export default defineConfig({
-  base: '/dnsproxyip-manager/'
+  base: './'
 });
