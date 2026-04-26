@@ -3,103 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DDNS Pro - ProxyIP 管理面板</title>
+  <title>DDNS Pro · ProxyIP Manager</title>
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <h1>DDNS Pro</h1>
-      <p>GitHub Pages 静态源站 · 通过 Worker /admin/ 挂载访问</p>
-    </div>
-    <button id="btnPing" class="secondary">测试后端</button>
+    <div><h1>DDNS Pro</h1><p>ProxyIP Manager · Worker Admin</p></div>
+    <div class="top-actions"><button id="btnRefreshAll" class="primary">刷新</button><button id="btnLogout">退出</button></div>
   </header>
-
   <main class="layout">
     <section class="card wide">
-      <h2>连接配置</h2>
-      <div class="grid two">
-        <label>
-          <span>Worker API 地址（通过 /admin/ 访问时可留空）</span>
-          <input id="apiBase" placeholder="留空则自动使用当前 Worker 域名" />
-        </label>
-        <label>
-          <span>AUTH_KEY</span>
-          <input id="authKey" type="password" placeholder="Worker 环境变量 AUTH_KEY" />
-        </label>
-      </div>
-      <div class="actions">
-        <button id="btnSaveConfig">保存配置</button>
-        <button id="btnClearConfig" class="ghost">清除配置</button>
-      </div>
-      <p class="hint">通过 Worker /admin/ 访问时，API 地址默认使用当前 Worker 域名；直接访问 GitHub Pages 源站时才需要手动填写。不要把 Cloudflare Token、TG Token 放在前端。</p>
+      <div class="card-title"><h2>IP 池管理</h2><div class="inline"><input id="poolKey" value="pool" placeholder="pool / pool_xxx" /><button id="btnLoadPool">加载</button><button id="btnCreatePool">创建池</button><button id="btnDeletePool" class="danger">删除池</button></div></div>
+      <div class="meta">当前数量：<b id="poolCount">-</b></div>
+      <textarea id="poolText" spellcheck="false" placeholder="每行一个 IP，例如：1.1.1.1:443"></textarea>
+      <div class="actions"><button id="btnAppend" class="primary">追加保存</button><button id="btnReplace">覆盖保存</button><button id="btnRemove" class="danger">删除这些 IP</button><button id="btnLoadTrash">查看垃圾桶</button><button id="btnClearTrash" class="danger">清空垃圾桶</button></div>
     </section>
-
-    <section class="card">
-      <h2>IP 池管理</h2>
-      <div class="row">
-        <input id="poolKey" value="pool" />
-        <button id="btnLoadPool">加载</button>
-      </div>
-      <div class="meta">当前数量：<strong id="poolCount">-</strong></div>
-      <textarea id="poolText" spellcheck="false" placeholder="1.1.1.1:443&#10;2.2.2.2:443 # comment"></textarea>
-      <div class="actions wrap">
-        <button id="btnAppendPool">追加</button>
-        <button id="btnReplacePool" class="warning">覆盖</button>
-        <button id="btnRemovePool" class="danger">删除所填 IP</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>ProxyIP 检测</h2>
-      <div class="row">
-        <input id="checkIp" placeholder="1.1.1.1:443" />
-        <button id="btnCheckIp">检测</button>
-      </div>
-      <pre id="checkResult" class="output small"></pre>
-    </section>
-
-    <section class="card">
-      <h2>手动维护</h2>
-      <p class="hint">调用后端 <code>/api/maintain?manual=true</code>，会检测 DNS 记录、删除失效 IP、从池中补充可用 IP。</p>
-      <button id="btnMaintain" class="primary">开始维护</button>
-      <pre id="maintainLogs" class="output"></pre>
-    </section>
-
-    <section class="card">
-      <h2>域名状态</h2>
-      <div class="row">
-        <input id="targetIndex" type="number" min="0" value="0" />
-        <button id="btnStatus">查看状态</button>
-      </div>
-      <pre id="statusResult" class="output"></pre>
-    </section>
-
-    <section class="card">
-      <h2>域名解析查询</h2>
-      <div class="row">
-        <input id="lookupDomain" placeholder="example.com 或 txt@example.com" />
-        <button id="btnLookup">查询</button>
-      </div>
-      <pre id="lookupResult" class="output small"></pre>
-    </section>
-
-    <section class="card wide">
-      <h2>IP 池映射</h2>
-      <div class="actions">
-        <button id="btnLoadMapping">加载映射</button>
-        <button id="btnSaveMapping" class="warning">保存映射</button>
-      </div>
-      <p class="hint">JSON 格式，例如：<code>{"proxy.example.com":"pool_us"}</code></p>
-      <textarea id="mappingText" class="json" spellcheck="false"></textarea>
-    </section>
-
-    <section class="card wide">
-      <h2>日志</h2>
-      <pre id="logs" class="output"></pre>
-    </section>
+    <section class="card"><h2>单个 ProxyIP 检测</h2><input id="checkIp" placeholder="1.1.1.1:443" /><div class="actions"><button id="btnCheckIp" class="primary">检测</button><label><input type="checkbox" id="useBackup" /> 使用备用接口</label></div><pre id="checkResult" class="result"></pre></section>
+    <section class="card"><h2>域名状态</h2><input id="targetIndex" value="0" placeholder="target index" /><div class="actions"><button id="btnStatus" class="primary">查询状态</button></div><pre id="statusResult" class="result"></pre></section>
+    <section class="card"><h2>域名解析</h2><input id="lookupDomain" placeholder="example.com 或 txt@example.com" /><div class="actions"><button id="btnLookup" class="primary">查询</button></div><pre id="lookupResult" class="result"></pre></section>
+    <section class="card wide"><div class="card-title"><h2>手动维护</h2><button id="btnMaintain" class="primary">立即维护</button></div><pre id="logs" class="logs"></pre></section>
+    <section class="card wide"><div class="card-title"><h2>域名与 IP 池映射</h2><button id="btnLoadMapping">加载映射</button><button id="btnSaveMapping" class="primary">保存映射</button></div><p class="hint">JSON 格式，例如：{"example.com":"pool_us"}</p><textarea id="mappingText" spellcheck="false" class="small"></textarea></section>
   </main>
-
+  <div id="toast" class="toast"></div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
