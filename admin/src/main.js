@@ -201,31 +201,70 @@ function sourceLabel(source) {
   return source || '-';
 }
 
-function stackLabel(result) {
-  const values = [];
-  if (result.supportsIpv4) values.push('IPv4');
-  if (result.supportsIpv6) values.push('IPv6');
-  return values.join('+') || '-';
-}
-
 function chip(text, extra = '') {
   if (!text) return '';
   return `<span class="meta-chip${extra ? ' ' + extra : ''}">${escapeHtml(text)}</span>`;
 }
 
-function formatExitChips(exits) {
-  if (!Array.isArray(exits) || !exits.length) return '';
-  return exits.map(e => {
-    const parts = [];
-    if (e.stack) parts.push(String(e.stack).toUpperCase());
-    if (e.ip) parts.push(e.ip);
-    if (e.colo) parts.push(e.colo);
-    const loc = [e.country, e.region, e.city].filter(Boolean).join('/');
-    if (loc) parts.push(loc);
-    const asnText = [e.asn ? `AS${e.asn}` : '', e.asOrganization || e.org || ''].filter(Boolean).join(' ');
-    if (asnText) parts.push(asnText);
-    return chip(parts.join(' · '), 'soft');
-  }).join('');
+function infoLine(text, extra = '') {
+  if (!text) return '';
+  return `<span class="check-info-line${extra ? ' ' + extra : ''}">${escapeHtml(text)}</span>`;
+}
+
+function cleanOrgName(exit) {
+  const raw = String(exit?.asOrganization || exit?.org || '').trim();
+  if (!raw) return '';
+  return raw.replace(/^AS\d+\s+/i, '').trim();
+}
+
+function exitLocation(exit) {
+  if (!exit) return '';
+  const country = exit.country || exit.countryCode || '';
+  const city = exit.city || exit.region || exit.regionCode || '';
+  return [country, city].filter(Boolean).join(' · ');
+}
+
+function exitAsn(exit) {
+  if (!exit) return '';
+  const asn = exit.asn ? `AS${exit.asn}` : '';
+  const org = cleanOrgName(exit);
+  return [asn, org].filter(Boolean).join(' · ');
+}
+
+function pickPrimaryExit(result) {
+  const exits = Array.isArray(result?.exits) ? result.exits.filter(Boolean) : [];
+  if (!exits.length) return null;
+  return exits.find(e => e.ipType === 'ipv4' || e.stack === 'ipv4') || exits[0];
+}
+
+function formatMs(value) {
+  if (value === 0) return '0 ms';
+  if (value === null || value === undefined || value === '') return '可用';
+  const num = Number(value);
+  if (Number.isFinite(num)) return `${Math.round(num)} ms`;
+  return String(value).replace(/\s*ms$/i, '') + ' ms';
+}
+
+function formatLandingIp(result) {
+  const exits = Array.isArray(result?.exits) ? result.exits.filter(e => e?.ip) : [];
+  if (!exits.length) return '';
+  const ips = [...new Set(exits.map(e => e.ip).filter(Boolean))];
+  if (!ips.length) return '';
+  return ips.length === 1 ? `落地 IP：${ips[0]}` : `落地 IP：${ips[0]} 等 ${ips.length} 个`;
+}
+
+function renderSuccessMeta(result) {
+  const exits = Array.isArray(result?.exits) ? result.exits.filter(Boolean) : [];
+  const primary = pickPrimaryExit(result);
+  const loc = exitLocation(primary);
+  const asn = exitAsn(primary);
+  const landing = formatLandingIp(result);
+  return [
+    loc ? infoLine(loc, 'ok') : '',
+    asn ? infoLine(asn) : '',
+    infoLine(`${exits.length || 0}个出口`, 'soft'),
+    landing ? infoLine(landing, 'landing') : ''
+  ].filter(Boolean).join('');
 }
 
 function renderCheckRecord(record, patch) {
@@ -239,7 +278,7 @@ function renderCheckRecord(record, patch) {
 
   if (record.status === 'success') {
     badge.className = 'status-badge ok';
-    badge.textContent = record.result?.responseTime ? `${record.result.responseTime}ms` : '可用';
+    badge.textContent = formatMs(record.result?.responseTime);
   } else if (record.status === 'failed') {
     badge.className = 'status-badge bad';
     badge.textContent = '失败';
@@ -253,12 +292,7 @@ function renderCheckRecord(record, patch) {
 
   const result = record.result || {};
   if (record.status === 'success') {
-    meta.innerHTML = [
-      chip(`来源：${sourceLabel(record.source)}`, 'ok'),
-      chip(`栈：${stackLabel(result)}`),
-      result.colo ? chip(`入口 Colo：${result.colo}`) : '',
-      formatExitChips(result.exits)
-    ].join('');
+    meta.innerHTML = renderSuccessMeta(result) || chip('可用', 'ok');
   } else if (record.status === 'pending') {
     meta.innerHTML = chip('检测中', 'soft');
   } else {
