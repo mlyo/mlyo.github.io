@@ -429,3 +429,80 @@ tr:last-child td { border-bottom: 0; }
 @media (max-width: 340px) {
   .top-actions, .actions { grid-template-columns: 1fr; }
 }
+
+/* v24: mobile density pass */
+@media (max-width: 640px) {
+  :root { --radius: 12px; }
+  body { font-size: 13px; }
+  button, input, select {
+    min-height: 32px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  textarea {
+    min-height: 118px;
+    padding: 8px;
+    border-radius: 11px;
+    font-size: 11px;
+  }
+  .topbar { padding: 7px 9px; gap: 6px; }
+  .topbar h1 { font-size: 15px; }
+  .top-actions { gap: 5px; }
+  .top-actions button, .top-actions .badge {
+    min-height: 31px;
+    padding: 5px 6px;
+    font-size: 11px;
+  }
+  .layout { width: calc(100vw - 8px); margin: 6px auto 14px; }
+  .sidebar { top: 50px; padding: 4px; margin-bottom: 7px; border-radius: 12px; }
+  .nav { min-height: 31px; padding: 6px 9px; font-size: 12px; border-radius: 9px; }
+  .panel.active { gap: 8px; }
+  .card { padding: 9px; border-radius: 12px; }
+  .card-title { gap: 7px; margin-bottom: 7px; }
+  .card-title h2 { font-size: 14px; }
+  .hint { margin-bottom: 7px; font-size: 11px; line-height: 1.45; }
+  .meta { margin: 5px 0 7px; font-size: 11px; }
+  .metric { min-height: 52px; }
+  .metric span { font-size: 10px; margin-bottom: 4px; }
+  .metric b { font-size: 15px; }
+  .actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 8px; }
+  .actions button { min-height: 33px; padding: 6px 6px; font-size: 11px; border-radius: 10px; }
+  .result { min-height: 72px; padding: 8px; font-size: 11px; border-radius: 11px; }
+  .result.small { min-height: 48px; }
+  th, td { padding: 7px 8px; font-size: 10px; }
+  table { min-width: 460px; }
+  .table-wrap { border-radius: 10px; }
+
+  #panel-pool .card:first-child .card-title {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  #panel-pool .card:first-child .card-title .inline {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  #poolSelect, #customPoolKey, #btnCreatePool, #btnDeletePool {
+    width: 100%;
+    min-width: 0;
+  }
+  #poolText { min-height: 118px; }
+
+  #panel-check textarea { min-height: 110px; }
+  .check-summary { gap: 5px; margin: 8px 0 6px; }
+  .check-summary article { padding: 6px 7px; border-radius: 10px; }
+  .check-summary span { font-size: 10px; margin-bottom: 2px; }
+  .check-summary b { font-size: 15px; }
+  .progress { height: 7px; margin: 6px 0 8px; }
+  .filter { min-height: 30px; padding: 5px 8px; font-size: 11px; }
+  .check-item { padding: 8px; border-radius: 11px; }
+  .check-target { font-size: 11px; }
+  .status-badge, .meta-chip { font-size: 10px; padding: 3px 6px; }
+}
+
+@media (max-width: 420px) {
+  .grid4, .check-config { grid-template-columns: 1fr 1fr; }
+  .check-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #panel-pool .card:first-child .card-title .inline { grid-template-columns: 1fr 1fr; }
+}
