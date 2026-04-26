@@ -3,138 +3,120 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DDNS Pro · 管理面板</title>
+  <title>DDNS Pro · DNS 维护系统</title>
   <link rel="stylesheet" href="/admin/src/style.css" />
 </head>
 <body>
   <header class="topbar">
     <div>
       <h1>DDNS Pro</h1>
-      <p>轻量 ProxyIP / DDNS / IP 池管理</p>
+      <p>DNS 维护 · ProxyIP 检测 · IP 池管理</p>
     </div>
     <div class="top-actions">
-      <span id="healthBadge" class="badge">状态检查中</span>
+      <span id="healthBadge" class="badge">检查中</span>
       <button id="btnRefreshAll" class="primary">刷新</button>
       <button id="btnLogout">退出</button>
     </div>
   </header>
 
-  <main class="shell">
-    <aside class="sidebar" aria-label="管理导航">
+  <main class="layout">
+    <aside class="sidebar">
       <button class="nav active" data-panel="dashboard">概览</button>
       <button class="nav" data-panel="pool">IP 池</button>
-      <button class="nav" data-panel="tools">检测</button>
-      <button class="nav" data-panel="domain">域名</button>
-      <button class="nav" data-panel="maintain">维护</button>
-      <button class="nav" data-panel="mapping">映射</button>
+      <button class="nav" data-panel="check">检测解析</button>
+      <button class="nav" data-panel="domain">域名 DNS</button>
+      <button class="nav" data-panel="mapping">域名映射</button>
+      <button class="nav" data-panel="maintain">维护任务</button>
     </aside>
 
     <section class="content">
       <section class="panel active" id="panel-dashboard">
-        <div class="grid cards3">
-          <article class="card metric"><span>当前 IP 池</span><b id="summaryPool">pool</b></article>
-          <article class="card metric"><span>IP 数量</span><b id="summaryCount">-</b></article>
-          <article class="card metric"><span>版本</span><b id="summaryVersion">-</b></article>
+        <div class="cards">
+          <article class="card metric"><span>系统版本</span><b id="versionText">-</b></article>
+          <article class="card metric"><span>KV 状态</span><b id="kvText">-</b></article>
+          <article class="card metric"><span>目标域名</span><b id="targetCount">-</b></article>
         </div>
-        <section class="card wide">
-          <div class="card-title"><h2>快速操作</h2></div>
-          <div class="actions">
-            <button class="primary" data-go="pool">管理 IP 池</button>
-            <button data-go="tools">检测 ProxyIP</button>
-            <button data-go="domain">查询域名 DNS</button>
-            <button data-go="mapping">编辑映射</button>
-          </div>
-          <p class="hint">主页 / 不展示后台；后台入口为 /admin/，登录页为 /login。当前版本保持 Worker 单文件、前端原生 JS。</p>
+        <section class="card">
+          <div class="card-title"><h2>维护目标</h2><button id="btnLoadConfig">重新读取</button></div>
+          <div class="table-wrap"><table><thead><tr><th>模式</th><th>域名</th><th>端口</th><th>最小活跃</th></tr></thead><tbody id="targetsBody"></tbody></table></div>
         </section>
       </section>
 
       <section class="panel" id="panel-pool">
-        <section class="card wide">
+        <section class="card">
           <div class="card-title">
             <h2>IP 池管理</h2>
-            <div class="inline pool-selector">
-              <select id="poolSelect" title="选择 IP 池"><option value="pool">pool</option><option value="__custom__">自定义...</option></select>
-              <input id="customPoolKey" class="hidden" placeholder="自定义池名，如 us / pool_us" />
-              <button id="btnLoadPool">加载</button>
-              <button id="btnCreatePool">创建池</button>
-              <button id="btnDeletePool" class="danger">删除池</button>
+            <div class="inline">
+              <select id="poolSelect"><option value="pool">pool</option></select>
+              <input id="customPoolKey" placeholder="新池名，如 us / pool_us" />
+              <button id="btnCreatePool">创建</button>
+              <button id="btnDeletePool" class="danger">删除</button>
             </div>
           </div>
-          <div class="meta">当前池：<b id="poolKeyLabel">pool</b> · 当前数量：<b id="poolCount">-</b></div>
-          <textarea id="poolText" spellcheck="false" placeholder="每行一个目标，例如：1.1.1.1:443#US 或 [2606:4700::1]:443#IPv6"></textarea>
-          <div class="actions"><button id="btnFormatPool">去重并格式化</button><button id="btnAppend" class="primary">追加保存</button><button id="btnReplace">覆盖保存</button><button id="btnRemove" class="danger">删除这些 IP</button><button id="btnLoadTrash">查看垃圾桶</button><button id="btnClearTrash" class="danger">清空垃圾桶</button></div>
+          <p class="hint">每行一个目标：<code>1.2.3.4:443</code> 或 <code>[2606:4700::1]:443 # 注释</code>。保存时会自动规范化和去重。</p>
+          <div class="meta">当前：<b id="poolLabel">pool</b> · 数量：<b id="poolCount">-</b></div>
+          <textarea id="poolText" spellcheck="false"></textarea>
+          <div class="actions">
+            <button id="btnLoadPool">加载</button>
+            <button id="btnFormatPool">本地格式化</button>
+            <button id="btnAppend" class="primary">追加保存</button>
+            <button id="btnReplace">覆盖保存</button>
+            <button id="btnRemove" class="danger">删除这些</button>
+            <button id="btnLoadTrash">垃圾桶</button>
+            <button id="btnClearTrash" class="danger">清空垃圾桶</button>
+          </div>
         </section>
-        <section class="card wide">
+
+        <section class="card">
           <div class="card-title"><h2>远程导入</h2></div>
-          <div class="remote-box">
-            <div class="inline grow">
-              <input id="remoteUrl" value="https://raw.githubusercontent.com/xgonce/Cloudflare_IP/refs/heads/main/result.csv" placeholder="远程 IP/CSV 地址" />
-              <input id="remoteCountry" value="US" placeholder="CF归属国" />
-              <input id="remotePort" value="443" placeholder="端口筛选" />
-              <select id="remoteFormat" title="远程格式"><option value="auto">自动识别</option><option value="csv">CSV</option><option value="txt">TXT</option></select>
-              <button id="btnLoadRemote" class="primary">预览导入</button>
-              <button id="btnLoadRemoteAppend">导入并保存</button>
-            </div>
-            <p class="hint">先预览，再追加保存；避免远程源异常污染当前池。</p>
+          <div class="grid4">
+            <input id="remoteUrl" placeholder="远程 TXT/CSV URL" />
+            <input id="remoteCountry" placeholder="国家/地区过滤，可空" />
+            <input id="remotePort" value="443" placeholder="默认端口" />
+            <select id="remoteFormat"><option value="auto">自动</option><option value="txt">TXT</option><option value="csv">CSV</option></select>
           </div>
-          <pre id="remotePreview" class="result small-result"></pre>
+          <div class="actions"><button id="btnPreviewRemote" class="primary">预览</button><button id="btnImportRemote">导入到当前池</button></div>
+          <pre id="remotePreview" class="result small"></pre>
         </section>
       </section>
 
-      <section class="panel" id="panel-tools">
-        <section class="card wide">
-          <div class="card-title"><h2>ProxyIP 检测</h2><div class="actions"><button id="btnResolveTargets">解析候选</button><button id="btnCheckTargets" class="primary">解析并检测</button><button id="btnStopCheck" class="danger" disabled>停止检测</button></div></div>
-          <p class="hint">支持 IPv4、IPv6、域名、域名:端口、多行批量。检测工具采用公共检测站同类原理：每组最多 2 个目标，浏览器多组并发执行，速度接近公共检测站；后端维护也按 2 个一组检测并配合 DNS 批量更新。</p>
-          <textarea id="checkTargets" class="small" spellcheck="false" placeholder="38.146.27.51:443&#10;example.com&#10;[2606:4700::1]:443"></textarea>
-          <div class="actions"><label><input type="checkbox" id="useBackup" /> 只使用备用接口</label><label><input type="checkbox" id="skipResolve" /> 不解析域名，直接检测</label><label class="inline-label">批次并发 <input id="frontendConcurrency" class="mini-input" value="30" inputmode="numeric" /></label><button id="btnCopyGood">复制可用项</button><button id="btnAddGoodToPool">可用项加入当前池</button><button id="btnCopyFiltered">复制筛选结果</button><button id="btnAddFilteredToPool">筛选可用项加入池</button></div>
-          <div id="checkProgressBox" class="check-progress-box hidden">
-            <div class="check-progress-head"><span id="checkProgressLabel">检测进度</span><strong id="checkProgressText">0 / 0</strong></div>
-            <div class="check-progress-track"><div id="checkProgressBar" class="check-progress-bar"></div></div>
-            <div id="checkProgressStats" class="check-progress-stats">成功 0 · 失败 0 · 0%</div>
-          </div>
-          <div id="resolveResult" class="muted check-output">等待解析</div>
-          <div id="checkFilters" class="check-filters hidden">
-            <div class="filter-row">
-              <button class="filter-chip active" data-filter-status="all">全部</button>
-              <button class="filter-chip" data-filter-status="success">可用</button>
-              <button class="filter-chip" data-filter-status="failed">不可用</button>
-              <select id="filterSource" title="接口筛选"><option value="all">全部接口</option><option value="main">主接口</option><option value="backup">备用接口</option></select>
-              <select id="filterCountry" title="国家筛选"><option value="all">全部国家</option></select>
-              <select id="filterColo" title="落地机房筛选"><option value="all">全部落地机房</option></select>
-              <input id="filterKeyword" placeholder="搜索 IP / ASN / 组织 / 城市 / 错误" />
-              <button id="btnClearFilters">清除筛选</button>
-            </div>
-            <div id="checkFilterSummary" class="filter-summary">暂无结果</div>
-          </div>
-          <div id="checkResult" class="check-list">等待检测</div>
+      <section class="panel" id="panel-check">
+        <section class="card">
+          <div class="card-title"><h2>解析与检测</h2><label><input type="checkbox" id="resolveBeforeCheck" checked /> 检测前解析域名</label></div>
+          <textarea id="checkInput" spellcheck="false" placeholder="每行一个 IP、域名、txt@域名"></textarea>
+          <div class="actions"><button id="btnResolve">只解析</button><button id="btnCheck" class="primary">检测</button></div>
+          <pre id="checkOutput" class="result"></pre>
         </section>
       </section>
 
       <section class="panel" id="panel-domain">
-        <section class="card wide"><h2>域名 DNS 状态查询</h2><p class="hint">查询指定域名当前 A / AAAA / TXT 记录，以及是否配置了域名与 IP 池映射。</p><input id="domainStatusInput" placeholder="请输入域名，例如 example.com" /><div class="actions"><button id="btnDomainStatus" class="primary">查询 DNS 状态</button></div><pre id="domainStatusResult" class="result"></pre></section>
-        <section class="card wide"><h2>配置目标状态</h2><p class="hint">按 CF_DOMAIN 配置里的 target index 查询维护状态。通常用于调试。</p><input id="targetIndex" value="0" placeholder="target index" /><div class="actions"><button id="btnStatus">查询配置目标</button></div><pre id="statusResult" class="result"></pre></section>
-      </section>
-
-      <section class="panel" id="panel-maintain">
-        <section class="card wide"><div class="card-title"><h2>手动维护</h2><div class="actions"><button id="btnCopyLogs">复制日志</button><button id="btnClearLogs" class="danger">清空日志</button><button id="btnMaintain" class="primary">立即维护</button></div></div><p class="hint">维护采用当前 DNS 优先、失效才补位、后端低并发、失败延迟入垃圾桶；结果会显示在下方日志区域。</p><pre id="logs" class="logs">暂无日志</pre></section>
+        <section class="card">
+          <div class="card-title"><h2>域名 DNS 状态</h2></div>
+          <div class="inline"><input id="domainInput" placeholder="example.com" /><button id="btnDomainStatus" class="primary">查询</button></div>
+          <pre id="domainOutput" class="result"></pre>
+        </section>
       </section>
 
       <section class="panel" id="panel-mapping">
-        <section class="card wide"><div class="card-title"><h2>域名与 IP 池映射</h2><div class="actions"><button id="btnLoadMapping">加载映射</button><button id="btnSaveMapping" class="primary">保存映射</button></div></div><p class="hint">JSON 格式，例如：{"us.example.com":"pool_US", "kr.example.com":"pool_KR"}。此处是配置，不是 DNS 查询。</p><textarea id="mappingText" spellcheck="false" class="small"></textarea></section>
+        <section class="card">
+          <div class="card-title"><h2>域名 → IP 池映射</h2><button id="btnLoadMapping">加载</button></div>
+          <p class="hint">JSON 对象：键为域名，值为池名。示例：<code>{"hk.example.com":"pool_hk"}</code></p>
+          <textarea id="mappingText" spellcheck="false"></textarea>
+          <div class="actions"><button id="btnSaveMapping" class="primary">保存映射</button></div>
+        </section>
+      </section>
+
+      <section class="panel" id="panel-maintain">
+        <section class="card">
+          <div class="card-title"><h2>手动维护</h2><button id="btnMaintain" class="primary">立即维护</button></div>
+          <p class="hint">维护顺序：先检测当前 DNS，再从映射池补足，新增成功后再清理失效记录，避免一次检测异常导致清空。</p>
+          <pre id="maintainOutput" class="result"></pre>
+        </section>
       </section>
     </section>
   </main>
 
-  <div id="toast" class="toast"></div>
-  <script>
-    setTimeout(() => {
-      const badge = document.getElementById('healthBadge');
-      if (!window.__DDNS_PRO_BOOTED && badge && badge.textContent.includes('状态检查中')) {
-        badge.textContent = '前端脚本未启动 · 请检查 /admin/src/main.js';
-        badge.className = 'badge bad';
-      }
-    }, 3000);
-  </script>
+  <div id="toast" class="toast" hidden></div>
   <script type="module" src="/admin/src/main.js"></script>
 </body>
 </html>
