@@ -78,6 +78,16 @@ async function loadConfig() {
   $('versionText').textContent = cfg.version;
   $('targetCount').textContent = cfg.targets.length;
   $('targetsBody').innerHTML = cfg.targets.map(t => `<tr><td>${t.mode}</td><td><code>${escapeHtml(t.domain)}</code></td><td>${t.port}</td><td>${t.minActive}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">未配置 CF_DOMAIN</td></tr>';
+  const cards = $('targetsCards');
+  if (cards) {
+    cards.innerHTML = cfg.targets.length
+      ? cfg.targets.map(t => `
+        <article class="target-card">
+          <div class="target-main"><code>${escapeHtml(t.domain)}</code><span>${t.mode}</span></div>
+          <div class="target-meta"><span>端口 ${t.port}</span><span>最小活跃 ${t.minActive}</span></div>
+        </article>`).join('')
+      : '<div class="empty-card">未配置 CF_DOMAIN</div>';
+  }
 }
 
 async function loadPools() {
