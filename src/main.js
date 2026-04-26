@@ -39,13 +39,14 @@ async function savePool(mode) {
 async function loadRemote({ autoSave = false } = {}) {
   const url = $('remoteUrl').value.trim();
   const cfCountry = $('remoteCountry').value.trim() || 'US';
-  const defaultPort = $('remotePort').value.trim() || '443';
+  const port = $('remotePort').value.trim() || '443';
+  const defaultPort = port;
   if (!url) throw new Error('请填写远程地址');
 
-  const data = await run('', () => api.loadRemoteUrl({ url, cfCountry, defaultPort }));
+  const data = await run('', () => api.loadRemoteUrl({ url, cfCountry, port, defaultPort }));
   const ips = data.ips || '';
   if (!ips) {
-    toast(`远程加载完成，但没有匹配 CF归属国=${cfCountry} 的 IP`, 'err');
+    toast(`远程加载完成，但没有匹配 CF归属国=${cfCountry} 且端口=${port} 的 IP`, 'err');
     return;
   }
 
