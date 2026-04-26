@@ -16,6 +16,16 @@
       <div class="card-title"><h2>IP 池管理</h2><div class="inline"><input id="poolKey" value="pool" placeholder="pool / pool_xxx" /><button id="btnLoadPool">加载</button><button id="btnCreatePool">创建池</button><button id="btnDeletePool" class="danger">删除池</button></div></div>
       <div class="meta">当前数量：<b id="poolCount">-</b></div>
       <textarea id="poolText" spellcheck="false" placeholder="每行一个 IP，例如：1.1.1.1:443"></textarea>
+      <div class="remote-box">
+        <div class="inline grow">
+          <input id="remoteUrl" value="https://raw.githubusercontent.com/xgonce/Cloudflare_IP/refs/heads/main/result.csv" placeholder="远程 IP/CSV 地址" />
+          <input id="remoteCountry" value="US" placeholder="CF归属国" />
+          <input id="remotePort" value="443" placeholder="默认端口" />
+          <button id="btnLoadRemote" class="primary">远程加载</button>
+          <button id="btnLoadRemoteAppend">加载并追加保存</button>
+        </div>
+        <p class="hint">CSV 会自动提取 IP、端口，并筛选 CF归属国=US。</p>
+      </div>
       <div class="actions"><button id="btnAppend" class="primary">追加保存</button><button id="btnReplace">覆盖保存</button><button id="btnRemove" class="danger">删除这些 IP</button><button id="btnLoadTrash">查看垃圾桶</button><button id="btnClearTrash" class="danger">清空垃圾桶</button></div>
     </section>
     <section class="card"><h2>单个 ProxyIP 检测</h2><input id="checkIp" placeholder="1.1.1.1:443" /><div class="actions"><button id="btnCheckIp" class="primary">检测</button><label><input type="checkbox" id="useBackup" /> 使用备用接口</label></div><pre id="checkResult" class="result"></pre></section>
