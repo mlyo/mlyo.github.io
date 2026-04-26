@@ -57,7 +57,7 @@ async function bootStatus() {
     $('healthBadge').textContent = kvText;
     $('healthBadge').className = `badge ${health.kv ? 'ok' : 'bad'}`;
   } catch (e) {
-    $('healthBadge').textContent = '状态异常';
+    $('healthBadge').textContent = `状态异常 · ${e.message || '接口不可用'}`;
     $('healthBadge').className = 'badge bad';
   }
 }
