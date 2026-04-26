@@ -26,7 +26,7 @@ const FRONTEND_CHECK_API_BACKUP = 'https://api.090227.xyz/check?proxyip=';
 function getFrontendConcurrency() {
   const n = Number($('frontendConcurrency')?.value || 20);
   if (!Number.isFinite(n)) return 20;
-  return Math.max(1, Math.min(50, Math.floor(n)));
+  return Math.max(1, Math.min(500, Math.floor(n)));
 }
 
 function normalizeExternalCheckResult(raw, candidate, source, responseTime) {
@@ -94,32 +94,69 @@ function parsePortFromTarget(target) {
   return 443;
 }
 
-async function callExternalCheck(candidate, source = 'main') {
+function buildFrontendBatchUrl(base, candidates) {
+  const joined = candidates.map(item => String(item || '').trim()).filter(Boolean).join(',');
+  return base + encodeURIComponent(joined);
+}
+
+function pickCheckRows(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.results)) return raw.results;
+  if (Array.isArray(raw?.data)) return raw.data;
+  if (Array.isArray(raw?.data?.results)) return raw.data.results;
+  if (raw && typeof raw === 'object' && typeof raw.success === 'boolean') return [raw];
+  return [];
+}
+
+async function callExternalCheckBatch(candidates, source = 'main') {
+  const list = candidates.map(item => String(item || '').trim()).filter(Boolean);
+  if (!list.length) return [];
   const base = source === 'backup' ? FRONTEND_CHECK_API_BACKUP : FRONTEND_CHECK_API;
   const started = performance.now();
-  const res = await fetch(base + encodeURIComponent(candidate), { cache: 'no-store' });
+  const res = await fetch(buildFrontendBatchUrl(base, list), { cache: 'no-store' });
   const text = await res.text();
   let raw;
   try { raw = text ? JSON.parse(text) : {}; }
   catch { raw = { success: false, message: text || '检测接口返回非 JSON' }; }
-  if (!res.ok) raw = { ...raw, success: false, message: raw.message || ('HTTP ' + res.status) };
-  return normalizeExternalCheckResult(raw, candidate, source, performance.now() - started);
+  if (!res.ok) raw = { success: false, message: raw.message || ('HTTP ' + res.status) };
+
+  const rows = pickCheckRows(raw);
+  const byCandidate = new Map();
+  for (const row of rows) {
+    const key = String(row?.candidate || row?.proxyIP || row?.proxyip || row?.target || '').trim();
+    if (key) byCandidate.set(key, row);
+  }
+
+  return list.map(candidate => {
+    const row = byCandidate.get(candidate) || rows.find(item => String(item?.candidate || '').trim() === candidate) || null;
+    if (!row) {
+      return normalizeExternalCheckResult({ success: false, message: '批量接口未返回该候选结果' }, candidate, source, performance.now() - started);
+    }
+    return normalizeExternalCheckResult(row, candidate, source, performance.now() - started);
+  });
 }
 
-async function checkOneCandidate(candidate, useBackupOnly = false) {
-  if (useBackupOnly) return callExternalCheck(candidate, 'backup');
+async function checkCandidateBatch(candidates, useBackupOnly = false) {
+  const list = candidates.map(item => String(item || '').trim()).filter(Boolean);
+  if (!list.length) return [];
+  if (useBackupOnly) return callExternalCheckBatch(list, 'backup');
   try {
-    const main = await callExternalCheck(candidate, 'main');
-    if (main.success === true) return main;
+    const main = await callExternalCheckBatch(list, 'main');
+    if (main.some(item => item.success === true)) return main;
     try {
-      const backup = await callExternalCheck(candidate, 'backup');
-      return backup.success === true ? backup : { ...main, source: 'main', message: main.message || backup.message || '主备接口均未返回 success=true' };
+      const backup = await callExternalCheckBatch(list, 'backup');
+      return backup.some(item => item.success === true) ? backup : main.map((item, index) => ({
+        ...item,
+        message: item.message || backup[index]?.message || '主备接口均未返回 success=true'
+      }));
     } catch (e) {
-      return { ...main, message: main.message || e.message || '备用接口异常' };
+      return main.map(item => ({ ...item, message: item.message || e.message || '备用接口异常' }));
     }
   } catch (e) {
-    try { return await callExternalCheck(candidate, 'backup'); }
-    catch (be) { return { candidate, success: false, source: 'main', responseTime: 0, portRemote: parsePortFromTarget(candidate), message: be.message || e.message || '检测失败' }; }
+    try { return await callExternalCheckBatch(list, 'backup'); }
+    catch (be) {
+      return list.map(candidate => ({ candidate, success: false, source: 'main', responseTime: 0, portRemote: parsePortFromTarget(candidate), message: be.message || e.message || '检测失败' }));
+    }
   }
 }
 
@@ -506,18 +543,24 @@ async function checkTargets() {
     resetCheckProgress(candidates.length);
     renderCheckProgress('检测中');
 
+    const batchSize = Math.max(1, Math.min(50, concurrency));
+    const batches = [];
+    for (let i = 0; i < candidates.length; i += batchSize) batches.push(candidates.slice(i, i + batchSize));
+
     const results = await runWithConcurrency(
-      candidates,
-      concurrency,
-      (candidate) => checkOneCandidate(candidate, useBackupOnly),
-      (done, total, result) => {
+      batches,
+      Math.max(1, Math.min(10, Math.ceil(concurrency / batchSize))),
+      (batch) => checkCandidateBatch(batch, useBackupOnly),
+      (done, total, batchResults) => {
         if (runId !== checkRunToken) return;
-        lastCheckResults.push(result);
-        updateCheckProgress(result);
+        for (const result of batchResults) {
+          lastCheckResults.push(result);
+          updateCheckProgress(result);
+        }
         renderCheckResults(lastCheckResults, { keepFilters: true });
       },
       () => runId !== checkRunToken
-    );
+    ).then(groups => groups.flat());
 
     if (runId !== checkRunToken) return;
     renderCheckResults(results);
