@@ -35,6 +35,30 @@ async function savePool(mode) {
   $('poolCount').textContent = data.count ?? '-';
 }
 
+
+async function loadRemote({ autoSave = false } = {}) {
+  const url = $('remoteUrl').value.trim();
+  const cfCountry = $('remoteCountry').value.trim() || 'US';
+  const defaultPort = $('remotePort').value.trim() || '443';
+  if (!url) throw new Error('请填写远程地址');
+
+  const data = await run('', () => api.loadRemoteUrl({ url, cfCountry, defaultPort }));
+  const ips = data.ips || '';
+  if (!ips) {
+    toast(`远程加载完成，但没有匹配 CF归属国=${cfCountry} 的 IP`, 'err');
+    return;
+  }
+
+  const current = $('poolText').value.trim();
+  $('poolText').value = current ? `${current}\n${ips}` : ips;
+  toast(`已加载 ${data.count || 0} 个远程 IP`);
+
+  if (autoSave) {
+    const saved = await run('远程 IP 已追加保存', () => api.savePool({ poolKey: poolKey(), pool: ips, mode: 'append' }));
+    $('poolCount').textContent = saved.count ?? '-';
+  }
+}
+
 async function maintain() {
   $('logs').textContent = '维护中...';
   const data = await run('维护完成', () => api.maintain());
@@ -61,6 +85,8 @@ function bind() {
   $('btnAppend').onclick = () => savePool('append').catch(() => {});
   $('btnReplace').onclick = () => savePool('replace').catch(() => {});
   $('btnRemove').onclick = () => savePool('remove').catch(() => {});
+  $('btnLoadRemote').onclick = () => loadRemote({ autoSave: false }).catch(() => {});
+  $('btnLoadRemoteAppend').onclick = () => loadRemote({ autoSave: true }).catch(() => {});
   $('btnLoadTrash').onclick = () => { $('poolKey').value = 'pool_trash'; loadPool('pool_trash').catch(() => {}); };
   $('btnClearTrash').onclick = async () => { if (!confirm('确定清空垃圾桶？')) return; await run('垃圾桶已清空', () => api.clearTrash()).catch(() => {}); if (poolKey() === 'pool_trash') loadPool('pool_trash').catch(() => {}); };
   $('btnCreatePool').onclick = async () => { await run('IP 池已创建', () => api.createPool(poolKey())).catch(() => {}); loadPool().catch(() => {}); };
