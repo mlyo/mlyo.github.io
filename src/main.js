@@ -53,7 +53,8 @@ async function bootStatus() {
   try {
     const [version, health] = await Promise.all([api.version(), api.health()]);
     $('summaryVersion').textContent = version.version || '-';
-    $('healthBadge').textContent = health.kv ? 'KV 正常' : 'KV 异常';
+    const kvText = health.kv ? `KV 正常${health.kvBinding ? ' · ' + health.kvBinding : ''}` : `KV 异常${health.kvBinding ? ' · ' + health.kvBinding : ''}`;
+    $('healthBadge').textContent = kvText;
     $('healthBadge').className = `badge ${health.kv ? 'ok' : 'bad'}`;
   } catch (e) {
     $('healthBadge').textContent = '状态异常';
