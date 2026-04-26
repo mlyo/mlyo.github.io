@@ -20,11 +20,11 @@
         <div class="inline grow">
           <input id="remoteUrl" value="https://raw.githubusercontent.com/xgonce/Cloudflare_IP/refs/heads/main/result.csv" placeholder="远程 IP/CSV 地址" />
           <input id="remoteCountry" value="US" placeholder="CF归属国" />
-          <input id="remotePort" value="443" placeholder="默认端口" />
+          <input id="remotePort" value="443" placeholder="端口筛选" />
           <button id="btnLoadRemote" class="primary">远程加载</button>
           <button id="btnLoadRemoteAppend">加载并追加保存</button>
         </div>
-        <p class="hint">CSV 会自动提取 IP、端口，并筛选 CF归属国=US。</p>
+        <p class="hint">CSV 会严格按表头提取 IP、端口，并同时筛选 CF归属国和端口。</p>
       </div>
       <div class="actions"><button id="btnAppend" class="primary">追加保存</button><button id="btnReplace">覆盖保存</button><button id="btnRemove" class="danger">删除这些 IP</button><button id="btnLoadTrash">查看垃圾桶</button><button id="btnClearTrash" class="danger">清空垃圾桶</button></div>
     </section>
@@ -32,7 +32,7 @@
     <section class="card"><h2>域名状态</h2><input id="targetIndex" value="0" placeholder="target index" /><div class="actions"><button id="btnStatus" class="primary">查询状态</button></div><pre id="statusResult" class="result"></pre></section>
     <section class="card"><h2>域名解析</h2><input id="lookupDomain" placeholder="example.com 或 txt@example.com" /><div class="actions"><button id="btnLookup" class="primary">查询</button></div><pre id="lookupResult" class="result"></pre></section>
     <section class="card wide"><div class="card-title"><h2>手动维护</h2><button id="btnMaintain" class="primary">立即维护</button></div><pre id="logs" class="logs"></pre></section>
-    <section class="card wide"><div class="card-title"><h2>域名与 IP 池映射</h2><button id="btnLoadMapping">加载映射</button><button id="btnSaveMapping" class="primary">保存映射</button></div><p class="hint">JSON 格式，例如：{"example.com":"pool_us"}</p><textarea id="mappingText" spellcheck="false" class="small"></textarea></section>
+    <section class="card wide"><div class="card-title"><h2>域名与 IP 池映射</h2><button id="btnLoadMapping">加载映射</button><button id="btnSaveMapping" class="primary">保存映射</button></div><p class="hint">JSON 格式，例如：{"us.example.com":"pool_US", "kr.example.com":"pool_KR"}。如果配置 REMOTE_COUNTRY_DOMAIN_MAP，系统会自动写入映射。</p><textarea id="mappingText" spellcheck="false" class="small"></textarea></section>
   </main>
   <div id="toast" class="toast"></div>
   <script type="module" src="./src/main.js"></script>
