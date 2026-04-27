@@ -152,11 +152,16 @@ function saveCheckConfig() {
   localStorage.setItem('checkTimeout', $('checkTimeout').value.trim());
 }
 
+function clampNumber(value, fallback, min, max) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.floor(n))) : fallback;
+}
+
 function getRuntimeCheckConfig() {
   return {
     publicCheckApi: getCheckConfig().publicCheckApi,
-    concurrency: Math.max(1, Math.min(30, Number($('checkConcurrency').value || 8))),
-    timeout: Math.max(1000, Math.min(60000, Number($('checkTimeout').value || 30000)))
+    concurrency: clampNumber($('checkConcurrency').value, 8, 1, 30),
+    timeout: clampNumber($('checkTimeout').value, 30000, 1000, 60000)
   };
 }
 
@@ -479,73 +484,11 @@ async function saveMapping() {
   toast('映射已保存');
 }
 
-
-function renderSourceRules(data) {
-  const rules = data?.rules || [];
-  if (!rules.length) {
-    return '<div class="empty-card">未配置 SOURCE_URLS / SOURCE_URLS_KR / SOURCE_RULES</div>';
-  }
-  return rules.map(rule => `
-    <article class="source-rule">
-      <div class="source-rule-head"><b>${escapeHtml(rule.id || '-')}</b><span>${escapeHtml(rule.country || 'AUTO')}</span></div>
-      <div class="source-rule-meta">
-        <span>URL ${rule.urls || 0}</span>
-        <span>${rule.pool ? '池 ' + escapeHtml(rule.pool) : '自动分池'}</span>
-      </div>
-    </article>
-  `).join('');
-}
-
-function renderSourceReport(data) {
-  const lines = [];
-  lines.push(`源规则：${data.reports?.length || 0}`);
-  lines.push(`候选：${data.totalCandidates || 0}`);
-  lines.push(`检测：${data.totalChecked || 0}`);
-  lines.push(`可用：${data.totalUsable || 0}`);
-  lines.push(`耗时：${data.processingTime || 0}ms`);
-  lines.push('');
-  for (const report of data.reports || []) {
-    lines.push(`== ${report.id}${report.country ? ' [' + report.country + ']' : ''} ==`);
-    lines.push(`加载 ${report.loaded} · 检测 ${report.checked} · 可用 ${report.usable}`);
-    const countries = Object.entries(report.countries || {}).map(([k,v]) => `${k}:${v}`).join(' ');
-    if (countries) lines.push(`分布：${countries}`);
-    for (const err of report.errors || []) lines.push(`! ${err.url} -> ${err.error}`);
-    lines.push('');
-  }
-  if (data.pools?.length) {
-    lines.push('== 写入池 ==');
-    for (const p of data.pools) lines.push(`${p.poolKey}: 新增 ${p.added} · 更新 ${p.updated} · 总计 ${p.total}`);
-  }
-  return lines.join('\n');
-}
-
-async function loadSourcesConfig() {
-  const data = await api.sourcesConfig();
-  const box = $('sourceRules');
-  if (box) box.innerHTML = renderSourceRules(data);
-  if (data.last) $('sourceOutput').textContent = '上次刷新：\n' + renderSourceReport(data.last);
-}
-
-async function refreshSources() {
-  const data = await api.refreshSources();
-  $('sourceOutput').textContent = renderSourceReport(data);
-  await loadPools().catch(() => {});
-  toast('源刷新完成');
-}
-
-async function refreshSourcesThenMaintain() {
-  const src = await api.refreshSources();
-  $('sourceOutput').textContent = renderSourceReport(src);
-  const result = await api.maintain();
-  $('sourceOutput').textContent += '\n\n== DNS 维护 ==\n' + renderMaintainReport(result);
-  await Promise.allSettled([loadPools(), loadConfig()]);
-  toast('源刷新并维护完成');
-}
-
 function renderMaintainReport(data) {
   const lines = [];
   lines.push(`处理域名：${data.processedTargets}/${data.totalTargets}`);
   lines.push(`耗时：${data.processingTime}ms`);
+  if (data.skipped) lines.push(`状态：已跳过（${data.reason || 'locked'}）`);
   lines.push(`通知：${data.notified ? '已发送' : data.tgStatus?.reason || '未发送'}`);
   lines.push('');
   for (const report of data.reports || []) {
@@ -596,14 +539,11 @@ async function init() {
   $('btnLoadMapping').addEventListener('click', () => run($('btnLoadMapping'), loadMapping, '加载中'));
   $('btnSaveMapping').addEventListener('click', () => run($('btnSaveMapping'), saveMapping, '保存中'));
   $('btnMaintain').addEventListener('click', () => run($('btnMaintain'), doMaintain, '维护中'));
-  $('btnLoadSources').addEventListener('click', () => run($('btnLoadSources'), loadSourcesConfig, '读取中'));
-  $('btnRefreshSources').addEventListener('click', () => run($('btnRefreshSources'), refreshSources, '刷新中'));
-  $('btnSourceToMaintain').addEventListener('click', () => run($('btnSourceToMaintain'), refreshSourcesThenMaintain, '执行中'));
   await boot();
 }
 
 async function boot() {
-  await Promise.allSettled([loadHealth(), loadConfig(), loadPools(), loadMapping(), loadSourcesConfig()]);
+  await Promise.allSettled([loadHealth(), loadConfig(), loadPools(), loadMapping()]);
   await loadPool(currentPool).catch(() => {});
 }
 
