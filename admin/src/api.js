@@ -97,9 +97,13 @@ export function normalizeCheckResult(data, target, source = 'direct') {
   const ipv6Ok = Boolean(payload.supports_ipv6 ?? payload.supportsIPv6 ?? probe.ipv6?.ok);
   const success = Boolean(payload.success === true || payload.ok === true || payload.status === 'success' || ipv4Ok || ipv6Ok);
   const exits = [];
+  if (Array.isArray(payload.exits)) exits.push(...payload.exits.filter(Boolean));
   if (probe.ipv4?.exit) exits.push({ stack: 'ipv4', ...probe.ipv4.exit });
   if (probe.ipv6?.exit) exits.push({ stack: 'ipv6', ...probe.ipv6.exit });
   if (!exits.length && payload.exit) exits.push({ stack: payload.ipType || 'exit', ...payload.exit });
+  if (!exits.length && (payload.exitIP || payload.ip || payload.country || payload.city || payload.asn || payload.org)) {
+    exits.push({ stack: payload.ipType || 'exit', ip: payload.exitIP || payload.ip || '', country: payload.country || '', city: payload.city || '', asn: payload.asn || '', asOrganization: payload.asOrganization || payload.org || '' });
+  }
   const colo = payload.colo || payload.cfColo || exits.map(e => e.colo).filter(Boolean).join(',') || '';
   const responseTime = payload.responseTime ?? payload.time ?? payload.ms ?? payload.latency ?? '';
   return {
@@ -164,8 +168,6 @@ export const api = {
   getMapping: () => apiRequest('/api/get-domain-pool-mapping'),
   saveMapping: (mapping) => apiRequest('/api/save-domain-pool-mapping', { method: 'POST', body: JSON.stringify({ mapping }) }),
   maintain: () => apiRequest('/api/maintain?manual=true', { method: 'POST', timeout: 180000 }),
-  sourcesConfig: () => apiRequest('/api/sources/config'),
-  refreshSources: () => apiRequest('/api/sources/refresh', { method: 'POST', timeout: 240000 }),
   async logout() {
     try { await apiRequest('/api/auth/logout', { method: 'POST' }); } catch {}
     clearAuth();
