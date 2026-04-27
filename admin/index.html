@@ -10,7 +10,7 @@
   <header class="topbar">
     <div>
       <h1>DDNS Pro</h1>
-      <p>DNS 维护 · ProxyIP 前端检测 · IP 池管理</p>
+      <p>TXT 维护 · ProxyIP 前端检测 · IP 池管理</p>
     </div>
     <div class="top-actions">
       <span id="healthBadge" class="badge">检查中</span>
@@ -24,7 +24,7 @@
       <button class="nav active" data-panel="dashboard"><span class="nav-icon">⌂</span><span class="nav-label">概览</span></button>
       <button class="nav" data-panel="pool"><span class="nav-icon">▦</span><span class="nav-label">IP 池</span></button>
       <button class="nav" data-panel="check"><span class="nav-icon">◎</span><span class="nav-label">检测</span></button>
-      <button class="nav" data-panel="domain"><span class="nav-icon">◌</span><span class="nav-label">DNS</span></button>
+      <button class="nav" data-panel="domain"><span class="nav-icon">◌</span><span class="nav-label">TXT</span></button>
       <button class="nav" data-panel="mapping"><span class="nav-icon">⇄</span><span class="nav-label">映射</span></button>
       <button class="nav" data-panel="maintain"><span class="nav-icon">⚙</span><span class="nav-label">维护</span></button>
     </aside>
@@ -67,20 +67,6 @@
             <button id="btnClearTrash" class="danger">清空垃圾桶</button>
           </div>
         </section>
-
-        <details class="card fold-card">
-          <summary><span>远程导入</span><small>URL / TXT / CSV</small></summary>
-          <div class="fold-body">
-            <div class="grid4">
-              <input id="remoteUrl" placeholder="远程 TXT/CSV URL" />
-              <input id="remoteCountry" placeholder="国家/地区过滤，可空" />
-              <input id="remotePort" value="443" placeholder="默认端口" />
-              <select id="remoteFormat"><option value="auto">自动</option><option value="txt">TXT</option><option value="csv">CSV</option></select>
-            </div>
-            <div class="actions"><button id="btnPreviewRemote" class="primary">预览</button><button id="btnImportRemote">导入到当前池</button></div>
-            <pre id="remotePreview" class="result small"></pre>
-          </div>
-        </details>
       </section>
 
       <section class="panel" id="panel-check">
@@ -98,7 +84,7 @@
             <input id="checkConcurrency" type="number" min="1" max="30" placeholder="并发" />
             <input id="checkTimeout" type="number" min="1000" max="60000" step="1000" placeholder="超时 ms" />
           </div>
-          <textarea id="checkInput" spellcheck="false" placeholder="每行一个 IP、域名、txt@域名；支持 1.2.3.4:443、[IPv6]:443、example.com:443"></textarea>
+          <textarea id="checkInput" spellcheck="false" placeholder="每行一个 IP、域名、txt@域名；普通域名默认 TXT 优先，支持 1.2.3.4:443、[IPv6]:443"></textarea>
           <div class="actions">
             <button id="btnResolve">只解析</button>
             <button id="btnCheck" class="primary">开始检测</button>
@@ -125,7 +111,7 @@
 
       <section class="panel" id="panel-domain">
         <section class="card">
-          <div class="card-title"><h2>域名 DNS 状态</h2></div>
+          <div class="card-title"><h2>域名 TXT 状态</h2></div>
           <div class="inline"><input id="domainInput" placeholder="example.com" /><button id="btnDomainStatus" class="primary">查询</button></div>
           <div id="domainOutput" class="domain-result"></div>
         </section>
