@@ -24,7 +24,6 @@
       <button class="nav active" data-panel="dashboard"><span class="nav-icon">⌂</span><span class="nav-label">概览</span></button>
       <button class="nav" data-panel="pool"><span class="nav-icon">▦</span><span class="nav-label">IP 池</span></button>
       <button class="nav" data-panel="check"><span class="nav-icon">◎</span><span class="nav-label">检测</span></button>
-      <button class="nav" data-panel="source"><span class="nav-icon">⇅</span><span class="nav-label">源</span></button>
       <button class="nav" data-panel="domain"><span class="nav-icon">◌</span><span class="nav-label">DNS</span></button>
       <button class="nav" data-panel="mapping"><span class="nav-icon">⇄</span><span class="nav-label">映射</span></button>
       <button class="nav" data-panel="maintain"><span class="nav-icon">⚙</span><span class="nav-label">维护</span></button>
@@ -121,25 +120,6 @@
           </div>
           <div id="checkResults" class="check-results"></div>
           <pre id="checkOutput" class="result small"></pre>
-        </section>
-      </section>
-
-
-      <section class="panel" id="panel-source">
-        <section class="card">
-          <div class="card-title">
-            <div>
-              <h2>自动源管理</h2>
-              <p class="hint">从 SOURCE_URLS / SOURCE_URLS_KR 等远程源拉取候选，优先读取每行注释里的 # KR / # JP 地区标签；后端只负责检测可用性，分类后写入 pool_kr / pool_jp 等池。</p>
-            </div>
-            <button id="btnLoadSources">读取配置</button>
-          </div>
-          <div id="sourceRules" class="source-rules"></div>
-          <div class="actions">
-            <button id="btnRefreshSources" class="primary">拉取并分类入池</button>
-            <button id="btnSourceToMaintain">刷新后维护 DNS</button>
-          </div>
-          <pre id="sourceOutput" class="result small"></pre>
         </section>
       </section>
 
