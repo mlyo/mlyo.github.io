@@ -46,7 +46,7 @@
         sessionStorage.removeItem('DDNS_AUTH_KEY');
         localStorage.removeItem('DDNS_AUTH_KEY');
         const redirect = new URL(location.href).searchParams.get('redirect') || '/admin/';
-        location.href = redirect;
+        location.href = redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/admin/';
       } catch (ex) {
         err.textContent = ex.message || '登录失败，请检查 AUTH_KEY';
       } finally {
