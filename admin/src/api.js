@@ -164,6 +164,8 @@ export const api = {
   getMapping: () => apiRequest('/api/get-domain-pool-mapping'),
   saveMapping: (mapping) => apiRequest('/api/save-domain-pool-mapping', { method: 'POST', body: JSON.stringify({ mapping }) }),
   maintain: () => apiRequest('/api/maintain?manual=true', { method: 'POST', timeout: 180000 }),
+  sourcesConfig: () => apiRequest('/api/sources/config'),
+  refreshSources: () => apiRequest('/api/sources/refresh', { method: 'POST', timeout: 240000 }),
   async logout() {
     try { await apiRequest('/api/auth/logout', { method: 'POST' }); } catch {}
     clearAuth();
