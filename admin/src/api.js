@@ -161,7 +161,6 @@ export const api = {
   deletePool: (poolKey) => apiRequest(`/api/delete-pool?poolKey=${encodeURIComponent(poolKey)}`, { method: 'POST' }),
   clearTrash: () => apiRequest('/api/clear-trash', { method: 'POST' }),
   restoreTrash: (ips, targetPool = 'pool') => apiRequest('/api/restore-from-trash', { method: 'POST', body: JSON.stringify({ ips, targetPool }) }),
-  loadRemote: (payload) => apiRequest('/api/load-remote-url', { method: 'POST', body: JSON.stringify(payload), timeout: 45000 }),
   resolveBatch: (targets) => apiRequest('/api/resolve-batch', { method: 'POST', body: JSON.stringify({ targets }), timeout: 45000 }),
   checkBatch: ({ targets, resolve }) => apiRequest('/api/check', { method: 'POST', body: JSON.stringify({ targets, resolve }), timeout: 120000 }),
   domainStatus: (domain) => apiRequest(`/api/domain/status?domain=${encodeURIComponent(domain)}`),
