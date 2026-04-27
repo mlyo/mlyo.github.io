@@ -67,6 +67,20 @@
             <button id="btnClearTrash" class="danger">清空垃圾桶</button>
           </div>
         </section>
+
+        <details class="card fold-card">
+          <summary><span>远程导入</span><small>URL / TXT / CSV</small></summary>
+          <div class="fold-body">
+            <div class="grid4">
+              <input id="remoteUrl" placeholder="远程 TXT/CSV URL" />
+              <input id="remoteCountry" placeholder="国家/地区过滤，可空" />
+              <input id="remotePort" value="443" placeholder="默认端口" />
+              <select id="remoteFormat"><option value="auto">自动</option><option value="txt">TXT</option><option value="csv">CSV</option></select>
+            </div>
+            <div class="actions"><button id="btnPreviewRemote" class="primary">预览</button><button id="btnImportRemote">导入到当前池</button></div>
+            <pre id="remotePreview" class="result small"></pre>
+          </div>
+        </details>
       </section>
 
       <section class="panel" id="panel-check">
