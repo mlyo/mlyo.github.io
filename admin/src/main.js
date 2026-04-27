@@ -4,7 +4,6 @@ const $ = (id) => document.getElementById(id);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const pretty = (value) => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 let currentPool = 'pool';
-let remotePreviewText = '';
 let checkRun = null;
 let checkRecords = [];
 let activeCheckFilter = 'all';
@@ -115,14 +114,6 @@ async function savePool(mode) {
   await loadPools();
   await loadPool(currentPool);
   toast(`已保存：${result.count} 条`);
-}
-
-async function previewRemote() {
-  const payload = { url: $('remoteUrl').value.trim(), cfCountry: $('remoteCountry').value.trim(), port: $('remotePort').value.trim() || '443', format: $('remoteFormat').value };
-  const result = await api.loadRemote(payload);
-  remotePreviewText = result.ips || '';
-  $('remotePreview').textContent = `数量：${result.count}\n\n${remotePreviewText}`;
-  toast(`预览 ${result.count} 条`);
 }
 
 function readTargets(textareaId) {
@@ -528,8 +519,6 @@ async function init() {
   $('btnClearTrash').addEventListener('click', async () => { if (confirm('确定清空垃圾桶？')) await run($('btnClearTrash'), async () => { await api.clearTrash(); await loadPool('pool_trash'); toast('垃圾桶已清空'); }, '清空中'); });
   $('btnCreatePool').addEventListener('click', () => run($('btnCreatePool'), async () => { const key = getPoolKeyInput(); await api.createPool(key); await loadPools(); await loadPool(key); toast('池已创建'); }, '创建中'));
   $('btnDeletePool').addEventListener('click', () => { const key = getPoolKeyInput(); if (confirm(`确定删除 ${key}？`)) run($('btnDeletePool'), async () => { await api.deletePool(key); currentPool = 'pool'; await loadPools(); await loadPool('pool'); toast('池已删除'); }, '删除中'); });
-  $('btnPreviewRemote').addEventListener('click', () => run($('btnPreviewRemote'), previewRemote, '加载中'));
-  $('btnImportRemote').addEventListener('click', () => run($('btnImportRemote'), async () => { if (!remotePreviewText) await previewRemote(); $('poolText').value = remotePreviewText; await savePool('append'); }, '导入中'));
   $('btnResolve').addEventListener('click', () => run($('btnResolve'), doResolve, '解析中'));
   $('btnCheck').addEventListener('click', () => run($('btnCheck'), doCheck, '检测中'));
   $('btnStopCheck').addEventListener('click', stopCheck);
